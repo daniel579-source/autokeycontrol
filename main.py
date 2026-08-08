@@ -345,6 +345,8 @@ class App(tk.Tk):
 			tk.Label(card, text=f"{index + 1:02d}  {rule.name}", background="#111a22", foreground="#f4f7f9", font=("Segoe UI", 11, "bold")).pack(side="left")
 			tk.Label(card, text=f"{status}  |  {condition}", background="#111a22", foreground="#9fb6c2").pack(side="left", padx=12)
 			tk.Label(card, text=f"按鍵 {rule.key}  冷卻 {rule.cooldown}s", background="#111a22", foreground="#9fb6c2").pack(side="left")
+			enabled_var = tk.BooleanVar(value=rule.enabled)
+			ttk.Checkbutton(card, text="啟用", variable=enabled_var, command=lambda value=index, variable=enabled_var: self.toggle_rule(value, variable.get())).pack(side="right", padx=(0, 10))
 			ttk.Button(card, text="上移", command=lambda value=index: self.move_rule(value, -1)).pack(side="right")
 			ttk.Button(card, text="下移", command=lambda value=index: self.move_rule(value, 1)).pack(side="right", padx=(0, 5))
 			for child in card.winfo_children():
@@ -354,6 +356,15 @@ class App(tk.Tk):
 					child.bind("<ButtonRelease-1>", self.finish_drag)
 			if index == self.selected_rule_index:
 				card.configure(highlightbackground="#e36d4f")
+
+	def toggle_rule(self, index, enabled):
+		if index < 0 or index >= len(self.rules):
+			return
+		self.rules[index].enabled = bool(enabled)
+		if self.selected_rule_index == index:
+			self.enabled_var.set(bool(enabled))
+		self.log(f"規則「{self.rules[index].name}」已{'啟用' if enabled else '停用'}")
+		self.refresh_tree()
 
 	def select_rule(self, index):
 		self.selected_rule_index = index
