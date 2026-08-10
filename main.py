@@ -419,10 +419,23 @@ class AutomationEngine:
 		if pyautogui is None:
 			self.app.log("預覽模式：尚未安裝 pyautogui，未送出按鍵")
 			return
-		self.app.focus_target()
-		pyautogui.keyDown(key)
-		time.sleep(max(0, rule.hold))
-		pyautogui.keyUp(key)
+		self.send_rule_key_at_target(rule, key)
+
+	def send_rule_key_at_target(self, rule, key):
+		original_position = pyautogui.position()
+		pressed = False
+		try:
+			self.app.focus_target()
+			center = self.app.target_center()
+			if center:
+				pyautogui.moveTo(center[0], center[1], duration=0)
+			pyautogui.keyDown(key)
+			pressed = True
+			time.sleep(max(0, rule.hold))
+		finally:
+			if pressed:
+				pyautogui.keyUp(key)
+			pyautogui.moveTo(original_position[0], original_position[1], duration=0)
 
 	def trigger_navigation(self, rule):
 		avoid_radius = float(rule.value or 80)
@@ -636,9 +649,14 @@ class App(tk.Tk):
 		ttk.Label(right, text="規則編輯器", font=("Segoe UI", 13, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
 		self.fields = {}
 		self.field_widgets = {}
-		field_defs = [("name", "名稱"), ("priority", "優先度"), ("condition", "條件"), ("value", "數值 / 門檻"), ("key", "按鍵 / 導航按鍵"), ("hold", "按住秒數"), ("cooldown", "冷卻秒數"), ("region", "判斷色框"), ("icon", "圖示資源")]
+		self.action_label = None
+		field_defs = [("name", "名稱"), ("priority", "優先度"), ("condition", "條件"), ("value", "數值 / 門檻"), ("key", "施放按鍵"), ("hold", "按住秒數"), ("cooldown", "冷卻秒數"), ("region", "判斷色框"), ("icon", "圖示資源")]
 		for row, (key, label) in enumerate(field_defs, 1):
-			ttk.Label(right, text=label).grid(row=row, column=0, sticky="w", pady=6)
+			if key == "key":
+				self.action_label = ttk.Label(right, text=label)
+				self.action_label.grid(row=row, column=0, sticky="w", pady=6)
+			else:
+				ttk.Label(right, text=label).grid(row=row, column=0, sticky="w", pady=6)
 			variable = tk.StringVar()
 			self.fields[key] = variable
 			if key == "name":
@@ -650,6 +668,7 @@ class App(tk.Tk):
 				IOSSwitch(name_field, self.enabled_var).pack(side="left", padx=(12, 0), pady=1)
 			elif key == "condition":
 				widget = IOSCombo(right, textvariable=variable, state="readonly", values=list(CONDITIONS.values()), width=22)
+				widget.bind("<<ComboboxSelected>>", self.on_condition_change)
 			elif key == "region":
 				widget = IOSCombo(right, textvariable=variable, state="readonly", values=RULE_REGIONS, width=22)
 			elif key == "icon":
@@ -814,6 +833,18 @@ class App(tk.Tk):
 			self.fields[key].set(str(value))
 		self.enabled_var.set(rule.enabled)
 		self.field_widgets["icon"]["values"] = tuple(self.status_icons.keys())
+		self.update_action_label(rule.condition)
+
+	def on_condition_change(self, _event=None):
+		condition_label = self.fields["condition"].get()
+		condition = next((key for key, label in CONDITIONS.items() if label == condition_label), condition_label)
+		self.update_action_label(condition)
+
+	def update_action_label(self, condition):
+		if self.action_label is None:
+			return
+		text = "缺少狀態時施放按鍵" if condition == "status_missing" else "施放按鍵"
+		self.action_label.configure(text=text)
 
 	def new_rule(self):
 		self.rules.append(Rule("新規規則"))
@@ -970,6 +1001,13 @@ class App(tk.Tk):
 			return None
 		window = windows[0]
 		return window.left, window.top, window.width, window.height
+
+	def target_center(self):
+		bounds = self.target_bounds()
+		if not bounds:
+			return None
+		left, top, width, height = bounds
+		return left + width // 2, top + height // 2
 
 	def to_screen_region(self, region):
 		bounds = self.target_bounds()
