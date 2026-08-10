@@ -492,6 +492,7 @@ class App(tk.Tk):
 		self.selected_rule_index = None
 		self.drag_index = None
 		self.resource_dir = Path(__file__).parent / "resources" / "status_icons"
+		self.autosave_path = Path(__file__).parent / "autokeycontrol.settings.json"
 		self.navigation_enabled = tk.BooleanVar(value=False)
 		self.roll_enabled = tk.BooleanVar(value=False)
 		self.teleport_enabled = tk.BooleanVar(value=False)
@@ -510,6 +511,7 @@ class App(tk.Tk):
 		self.protocol("WM_DELETE_WINDOW", self.close)
 		self.build_style()
 		self.build_ui()
+		self.load_path(self.autosave_path, silent=True)
 
 	def build_style(self):
 		style = ttk.Style(self)
@@ -1119,27 +1121,36 @@ class App(tk.Tk):
 		overlay.grab_set()
 		overlay.focus_force()
 
-	def save(self):
-		path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON 設定", "*.json")])
-		if not path:
-			return
+	def settings_payload(self):
 		self.parse_regions()
 		self.parse_status_icons()
-		data = {"target": self.target_var.get(), "window": self.window_var.get(), "theme": IOS_THEME, "regions": self.regions, "status_icons": self.status_icons, "rules": [asdict(rule) for rule in self.rules], "navigation": {"enabled": self.navigation_enabled.get(), "keys": self.navigation_key_var.get(), "hold": self.navigation_hold_var.get(), "avoid_radius": self.navigation_avoid_radius_var.get(), "roll": self.roll_enabled.get(), "teleport": self.teleport_enabled.get(), "teleport_key": self.teleport_key_var.get(), "teleport_cooldown": self.teleport_cooldown_var.get()}}
-		Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-		self.log(f"設定已儲存：{Path(path).name}")
+		return {"version": APP_VERSION, "target": self.target_var.get(), "window": self.window_var.get(), "theme_name": self.theme_var.get(), "theme": IOS_THEME, "regions": self.regions, "status_icons": self.status_icons, "status_draft": {"name": self.status_name_var.get(), "apply_key": self.status_key_var.get(), "text": self.status_text.get("1.0", "end-1c")}, "selected_rule_index": self.selected_rule_index, "rules": [asdict(rule) for rule in self.rules], "navigation": {"enabled": self.navigation_enabled.get(), "keys": self.navigation_key_var.get(), "hold": self.navigation_hold_var.get(), "avoid_radius": self.navigation_avoid_radius_var.get(), "roll": self.roll_enabled.get(), "teleport": self.teleport_enabled.get(), "teleport_key": self.teleport_key_var.get(), "teleport_cooldown": self.teleport_cooldown_var.get()}}
+
+	def save_path(self, path, silent=False):
+		Path(path).write_text(json.dumps(self.settings_payload(), ensure_ascii=False, indent=2), encoding="utf-8")
+		if not silent:
+			self.log(f"設定已儲存：{Path(path).name}")
+
+	def save(self):
+		path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON 設定", "*.json")])
+		if path:
+			self.save_path(path)
 
 	def load(self):
 		path = filedialog.askopenfilename(filetypes=[("JSON 設定", "*.json")])
-		if not path:
-			return
+		if path:
+			self.load_path(Path(path))
+
+	def load_path(self, path, silent=False):
+		if not Path(path).exists():
+			return False
 		try:
 			data = json.loads(Path(path).read_text(encoding="utf-8"))
 			self.target_var.set(data.get("target", ""))
 			self.window_var.set(data.get("window", "尚未選擇"))
 			if isinstance(data.get("theme"), dict):
 				IOS_THEME.update({key: str(value) for key, value in data["theme"].items() if key in IOS_THEME})
-				self.theme_var.set("自訂")
+				self.theme_var.set(str(data.get("theme_name", "自訂")))
 				self.apply_theme(IOS_THEME)
 			navigation = data.get("navigation", {})
 			self.navigation_enabled.set(bool(navigation.get("enabled", False)))
@@ -1163,6 +1174,12 @@ class App(tk.Tk):
 					self.status_icons[key] = {"region": tuple(value), "path": "", "apply_key": ""}
 			self.status_text.delete("1.0", "end")
 			self.status_text.insert("1.0", "\n".join(f"{key}={','.join(map(str, value.get('region', ())))}|{value.get('path', '')}|{value.get('apply_key', '')}" for key, value in self.status_icons.items()))
+			status_draft = data.get("status_draft", {})
+			self.status_name_var.set(str(status_draft.get("name", "")))
+			self.status_key_var.set(str(status_draft.get("apply_key", "")))
+			if status_draft.get("text") is not None:
+				self.status_text.delete("1.0", "end")
+				self.status_text.insert("1.0", str(status_draft["text"]))
 			self.rules = []
 			for item in data.get("rules", []):
 				item = dict(item)
@@ -1175,12 +1192,25 @@ class App(tk.Tk):
 				item.setdefault("icon_path", str(self.status_icons.get(item["icon"], {}).get("path", "")))
 				self.rules.append(Rule(**item))
 			self.refresh_tree()
-			self.log(f"設定已載入：{Path(path).name}")
+			selected_index = data.get("selected_rule_index")
+			if isinstance(selected_index, int) and 0 <= selected_index < len(self.rules):
+				self.selected_rule_index = selected_index
+				self.refresh_tree()
+				self.on_select()
+			if not silent:
+				self.log(f"設定已載入：{Path(path).name}")
+			return True
 		except (OSError, json.JSONDecodeError, TypeError):
-			messagebox.showerror("載入失敗", "設定檔格式不正確。")
+			if not silent:
+				messagebox.showerror("載入失敗", "設定檔格式不正確。")
+			return False
 
 	def close(self):
 		self.engine.stop()
+		try:
+			self.save_path(self.autosave_path, silent=True)
+		except OSError:
+			pass
 		self.destroy()
 
 
