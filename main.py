@@ -50,7 +50,7 @@ class IOSSwitch(tk.Frame):
 		try:
 			background = parent.cget("background")
 		except tk.TclError:
-			background = "#17212b"
+			background = "#F2F2F7"
 		super().__init__(parent, width=self.WIDTH, height=self.HEIGHT, bg=background, highlightthickness=0, padx=0, pady=0)
 		self.pack_propagate(False)
 		self.variable = variable
@@ -75,7 +75,7 @@ class IOSSwitch(tk.Frame):
 	def refresh(self, *_args):
 		self.canvas.delete("all")
 		on = bool(self.variable.get())
-		track = "#34C759" if on else "#8E8E93"
+		track = "#34C759" if on else "#AEAEB2"
 		self.canvas.create_oval(1, 1, self.HEIGHT - 1, self.HEIGHT - 1, fill=track, outline=track)
 		self.canvas.create_rectangle(self.HEIGHT / 2, 1, self.WIDTH - self.HEIGHT / 2, self.HEIGHT - 1, fill=track, outline=track)
 		self.canvas.create_oval(self.WIDTH - self.HEIGHT - 1, 1, self.WIDTH - 1, self.HEIGHT - 1, fill=track, outline=track)
@@ -87,9 +87,9 @@ class IOSButton(tk.Button):
 	def __init__(self, parent, **kwargs):
 		kwargs.setdefault("relief", "flat")
 		kwargs.setdefault("bd", 0)
-		kwargs.setdefault("bg", "#2C3A47")
-		kwargs.setdefault("fg", "#F4F7F9")
-		kwargs.setdefault("activebackground", "#3E5263")
+		kwargs.setdefault("bg", "#E5E5EA")
+		kwargs.setdefault("fg", "#1C1C1E")
+		kwargs.setdefault("activebackground", "#D1D1D6")
 		kwargs.setdefault("activeforeground", "#FFFFFF")
 		kwargs.setdefault("font", ("Segoe UI", 10))
 		kwargs.setdefault("padx", 12)
@@ -100,8 +100,8 @@ class IOSButton(tk.Button):
 
 class IOSPrimaryButton(IOSButton):
 	def __init__(self, parent, **kwargs):
-		kwargs.setdefault("bg", "#0A84FF")
-		kwargs.setdefault("activebackground", "#409CFF")
+		kwargs.setdefault("bg", "#007AFF")
+		kwargs.setdefault("activebackground", "#5AC8FA")
 		kwargs.setdefault("font", ("Segoe UI", 10, "bold"))
 		super().__init__(parent, **kwargs)
 
@@ -110,12 +110,12 @@ class IOSEntry(tk.Entry):
 	def __init__(self, parent, **kwargs):
 		kwargs.setdefault("relief", "flat")
 		kwargs.setdefault("bd", 0)
-		kwargs.setdefault("bg", "#24313D")
-		kwargs.setdefault("fg", "#F4F7F9")
+		kwargs.setdefault("bg", "#FFFFFF")
+		kwargs.setdefault("fg", "#1C1C1E")
 		kwargs.setdefault("insertbackground", "#FFFFFF")
 		kwargs.setdefault("highlightthickness", 1)
-		kwargs.setdefault("highlightbackground", "#3A4A58")
-		kwargs.setdefault("highlightcolor", "#0A84FF")
+		kwargs.setdefault("highlightbackground", "#D1D1D6")
+		kwargs.setdefault("highlightcolor", "#007AFF")
 		kwargs.setdefault("font", ("Segoe UI", 10))
 		super().__init__(parent, **kwargs)
 
@@ -128,9 +128,9 @@ class IOSCombo(ttk.Combobox):
 
 class IOSScrollbar(tk.Scrollbar):
 	def __init__(self, parent, **kwargs):
-		kwargs.setdefault("bg", "#24313D")
+		kwargs.setdefault("bg", "#E5E5EA")
 		kwargs.setdefault("activebackground", "#5B7182")
-		kwargs.setdefault("troughcolor", "#17212B")
+		kwargs.setdefault("troughcolor", "#F2F2F7")
 		kwargs.setdefault("bd", 0)
 		kwargs.setdefault("width", 12)
 		kwargs.setdefault("highlightthickness", 0)
@@ -319,7 +319,7 @@ class AutomationEngine:
 		self.stop_event.set()
 
 	def run(self):
-		self.app.set_status("執行中", "#5ee0a0")
+		self.app.set_status("執行中", "#34C759")
 		while not self.stop_event.is_set():
 			rules = sorted((rule for rule in self.app.rules if rule.enabled), key=lambda item: item.priority)
 			fired = False
@@ -332,7 +332,7 @@ class AutomationEngine:
 					break
 			if not fired:
 				self.stop_event.wait(0.1)
-		self.app.set_status("已停止", "#ffb86b")
+		self.app.set_status("已停止", "#FF9500")
 
 	def run_navigation(self):
 		while not self.stop_event.is_set():
@@ -447,7 +447,7 @@ class App(tk.Tk):
 		self.title(f"AUTOKEY CONTROL {APP_VERSION}  /  視覺條件自動化")
 		self.geometry("1280x780")
 		self.minsize(1120, 680)
-		self.configure(bg="#10161d")
+		self.configure(bg="#F2F2F7")
 		self.rules = []
 		self.regions = {}
 		self.region_vars = {}
@@ -476,19 +476,19 @@ class App(tk.Tk):
 	def build_style(self):
 		style = ttk.Style(self)
 		style.theme_use("clam")
-		style.configure("TFrame", background="#10161d")
-		style.configure("Panel.TFrame", background="#17212b")
-		style.configure("TLabel", background="#17212b", foreground="#d7e2ea", font=("Segoe UI", 10))
-		style.configure("Title.TLabel", background="#10161d", foreground="#f4f7f9", font=("Segoe UI", 22, "bold"))
-		style.configure("Sub.TLabel", background="#10161d", foreground="#8fa4b2", font=("Segoe UI", 10))
-		style.configure("TButton", background="#263744", foreground="#e9f1f5", padding=(12, 7), borderwidth=0)
-		style.map("TButton", background=[("active", "#3b5362")])
-		style.configure("IOS.TCombobox", fieldbackground="#24313D", background="#2C3A47", foreground="#F4F7F9", arrowcolor="#D7E2EA", borderwidth=0, padding=6)
-		style.map("IOS.TCombobox", fieldbackground=[("readonly", "#24313D")], foreground=[("readonly", "#F4F7F9")])
-		style.configure("Accent.TButton", background="#e36d4f", foreground="white", font=("Segoe UI", 10, "bold"))
-		style.map("Accent.TButton", background=[("active", "#f48a68")])
-		style.configure("Treeview", background="#111a22", fieldbackground="#111a22", foreground="#d7e2ea", rowheight=32, borderwidth=0)
-		style.configure("Treeview.Heading", background="#263744", foreground="#b8cbd4", relief="flat")
+		style.configure("TFrame", background="#F2F2F7")
+		style.configure("Panel.TFrame", background="#FFFFFF")
+		style.configure("TLabel", background="#FFFFFF", foreground="#1C1C1E", font=("Segoe UI", 10))
+		style.configure("Title.TLabel", background="#F2F2F7", foreground="#1C1C1E", font=("Segoe UI", 22, "bold"))
+		style.configure("Sub.TLabel", background="#F2F2F7", foreground="#8E8E93", font=("Segoe UI", 10))
+		style.configure("TButton", background="#E5E5EA", foreground="#1C1C1E", padding=(12, 7), borderwidth=0)
+		style.map("TButton", background=[("active", "#D1D1D6")])
+		style.configure("IOS.TCombobox", fieldbackground="#FFFFFF", background="#E5E5EA", foreground="#1C1C1E", arrowcolor="#007AFF", borderwidth=0, padding=6)
+		style.map("IOS.TCombobox", fieldbackground=[("readonly", "#FFFFFF")], foreground=[("readonly", "#1C1C1E")])
+		style.configure("Accent.TButton", background="#007AFF", foreground="white", font=("Segoe UI", 10, "bold"))
+		style.map("Accent.TButton", background=[("active", "#5AC8FA")])
+		style.configure("Treeview", background="#FFFFFF", fieldbackground="#FFFFFF", foreground="#1C1C1E", rowheight=32, borderwidth=0)
+		style.configure("Treeview.Heading", background="#E5E5EA", foreground="#636366", relief="flat")
 
 	def build_ui(self):
 		header = ttk.Frame(self)
@@ -517,7 +517,7 @@ class App(tk.Tk):
 		body.add(right_shell, weight=2)
 		right_shell.grid_rowconfigure(0, weight=1)
 		right_shell.grid_columnconfigure(0, weight=1)
-		right_canvas = tk.Canvas(right_shell, bg="#17212b", highlightthickness=0)
+		right_canvas = tk.Canvas(right_shell, bg="#FFFFFF", highlightthickness=0)
 		right_scroll = IOSScrollbar(right_shell, orient="vertical", command=right_canvas.yview)
 		right_canvas.configure(yscrollcommand=right_scroll.set)
 		right_canvas.grid(row=0, column=0, sticky="nsew")
@@ -528,10 +528,10 @@ class App(tk.Tk):
 		right_canvas.bind("<Configure>", lambda event: right_canvas.itemconfigure(right_window, width=event.width))
 		right_canvas.bind("<Enter>", lambda _event: self.set_scroll_canvas(right_canvas))
 		ttk.Label(left, text="規則優先序", font=("Segoe UI", 13, "bold")).pack(anchor="w")
-		ttk.Label(left, text="卡片由上到下執行；使用上移 / 下移調整優先順序。", foreground="#8fa4b2").pack(anchor="w", pady=(3, 12))
+		ttk.Label(left, text="卡片由上到下執行；使用上移 / 下移調整優先順序。", foreground="#8E8E93").pack(anchor="w", pady=(3, 12))
 		cards_shell = ttk.Frame(left, style="Panel.TFrame")
 		cards_shell.pack(fill="both", expand=True)
-		cards_canvas = tk.Canvas(cards_shell, bg="#17212b", highlightthickness=0)
+		cards_canvas = tk.Canvas(cards_shell, bg="#FFFFFF", highlightthickness=0)
 		cards_scroll = IOSScrollbar(cards_shell, orient="vertical", command=cards_canvas.yview)
 		cards_canvas.configure(yscrollcommand=cards_scroll.set)
 		cards_canvas.pack(side="left", fill="both", expand=True)
@@ -575,7 +575,7 @@ class App(tk.Tk):
 				widget.grid(row=row, column=1, sticky="ew", padx=(14, 0), pady=6)
 			self.field_widgets[key] = widget
 		ttk.Separator(right).grid(row=10, column=0, columnspan=2, sticky="ew", pady=5)
-		tk.Label(right, text="色框3已移至下方獨立控制，不列入規則優先序", foreground="#8fa4b2").grid(row=10, column=1, sticky="w", pady=(0, 5))
+		tk.Label(right, text="色框3已移至下方獨立控制，不列入規則優先序", foreground="#8E8E93").grid(row=10, column=1, sticky="w", pady=(0, 5))
 		ttk.Label(right, text="視覺區域（相對目標視窗）", font=("Segoe UI", 11, "bold")).grid(row=11, column=0, columnspan=2, sticky="w", pady=(14, 8))
 		for row, region in enumerate(("色框1 血量", "色框2 狀態", "色框3 地圖"), 12):
 			ttk.Label(right, text=region).grid(row=row, column=0, sticky="w", pady=5)
@@ -585,7 +585,7 @@ class App(tk.Tk):
 			field.grid(row=row, column=1, sticky="ew", padx=(14, 0), pady=5)
 			IOSEntry(field, textvariable=variable, width=17).pack(side="left")
 			IOSButton(field, text="框選", command=lambda name=region: self.select_region(name)).pack(side="left", padx=(5, 0))
-		ttk.Label(right, text="格式：相對 x,y,width,height", foreground="#8fa4b2").grid(row=15, column=1, sticky="w", pady=(2, 14))
+		tk.Label(right, text="格式：相對 x,y,width,height", foreground="#8E8E93").grid(row=15, column=1, sticky="w", pady=(2, 14))
 		ttk.Label(right, text="色框2 狀態圖示（每行一個）", font=("Segoe UI", 11, "bold")).grid(row=16, column=0, columnspan=2, sticky="w", pady=(4, 6))
 		tk.Label(right, text="色框3 獨立移動控制", font=("Segoe UI", 11, "bold")).grid(row=20, column=0, columnspan=2, sticky="w", pady=(4, 8))
 		navigation_toggle = ttk.Frame(right)
@@ -615,15 +615,15 @@ class App(tk.Tk):
 		self.status_name_var = tk.StringVar()
 		IOSEntry(status_toolbar, textvariable=self.status_name_var, width=19).pack(side="left")
 		IOSButton(status_toolbar, text="框選並加入", command=self.select_status_icon).pack(side="left", padx=(5, 0))
-		self.status_text = tk.Text(right, height=4, width=35, bg="#111a22", fg="#d7e2ea", insertbackground="white", relief="flat")
+		self.status_text = tk.Text(right, height=4, width=35, bg="#FFFFFF", fg="#1C1C1E", insertbackground="#007AFF", relief="flat", highlightthickness=1, highlightbackground="#D1D1D6")
 		self.status_text.grid(row=18, column=0, columnspan=2, sticky="ew")
-		ttk.Label(right, text="輸入狀態名稱後按框選；規則的狀態圖示名稱需相同", foreground="#8fa4b2", wraplength=270).grid(row=19, column=0, columnspan=2, sticky="w", pady=(4, 12))
+		tk.Label(right, text="輸入狀態名稱後按框選；規則的狀態圖示名稱需相同", foreground="#8E8E93", wraplength=270).grid(row=19, column=0, columnspan=2, sticky="w", pady=(4, 12))
 
 		footer = ttk.Frame(self)
 		footer.pack(fill="x", padx=28, pady=(0, 20))
-		self.status_label = ttk.Label(footer, text="●  待命", foreground="#ffb86b")
+		self.status_label = ttk.Label(footer, text="●  待命", foreground="#FF9500")
 		self.status_label.pack(side="left")
-		self.log_text = tk.Text(footer, height=4, bg="#111a22", fg="#9fb6c2", insertbackground="white", relief="flat", state="disabled")
+		self.log_text = tk.Text(footer, height=4, bg="#FFFFFF", fg="#636366", insertbackground="#007AFF", relief="flat", highlightthickness=1, highlightbackground="#D1D1D6", state="disabled")
 		self.log_text.pack(side="left", fill="x", expand=True, padx=22)
 		IOSPrimaryButton(footer, text="開始執行", command=self.start).pack(side="right")
 		IOSButton(footer, text="停止", command=self.stop).pack(side="right", padx=8)
@@ -645,15 +645,15 @@ class App(tk.Tk):
 		for child in self.cards_frame.winfo_children():
 			child.destroy()
 		for index, rule in enumerate(self.rules):
-			card = tk.Frame(self.cards_frame, bg="#111a22", highlightthickness=2, highlightbackground="#2b3d49", padx=10, pady=8)
+			card = tk.Frame(self.cards_frame, bg="#FFFFFF", highlightthickness=1, highlightbackground="#D1D1D6", padx=10, pady=8)
 			card.pack(fill="x", pady=(0, 8))
 			card.bind("<Button-1>", lambda _event, value=index: self.select_rule(value))
 			card.bind("<ButtonPress-1>", lambda _event, value=index: self.begin_drag(value))
 			card.bind("<ButtonRelease-1>", self.finish_drag)
 			condition = CONDITIONS.get(rule.condition, rule.condition)
-			tk.Label(card, text=f"{index + 1:02d}  {rule.name}", background="#111a22", foreground="#f4f7f9", font=("Segoe UI", 11, "bold")).pack(side="left")
-			tk.Label(card, text=condition, background="#111a22", foreground="#9fb6c2").pack(side="left", padx=12)
-			tk.Label(card, text=f"按鍵 {rule.key}  冷卻 {rule.cooldown}s", background="#111a22", foreground="#9fb6c2").pack(side="left")
+			tk.Label(card, text=f"{index + 1:02d}  {rule.name}", background="#FFFFFF", foreground="#1C1C1E", font=("Segoe UI", 11, "bold")).pack(side="left")
+			tk.Label(card, text=condition, background="#FFFFFF", foreground="#636366").pack(side="left", padx=12)
+			tk.Label(card, text=f"按鍵 {rule.key}  冷卻 {rule.cooldown}s", background="#FFFFFF", foreground="#636366").pack(side="left")
 			enabled_var = tk.BooleanVar(value=rule.enabled)
 			IOSSwitch(card, enabled_var, command=lambda value=index, variable=enabled_var: self.toggle_rule(value, variable.get())).pack(side="right", padx=(0, 8), pady=1)
 			IOSButton(card, text="上移", command=lambda value=index: self.move_rule(value, -1)).pack(side="right")
@@ -664,7 +664,7 @@ class App(tk.Tk):
 					child.bind("<ButtonPress-1>", lambda _event, value=index: self.begin_drag(value))
 					child.bind("<ButtonRelease-1>", self.finish_drag)
 			if index == self.selected_rule_index:
-				card.configure(highlightbackground="#e36d4f")
+				card.configure(highlightbackground="#007AFF")
 
 	def toggle_rule(self, index, enabled):
 		if index < 0 or index >= len(self.rules):
