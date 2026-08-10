@@ -1,5 +1,6 @@
 import json
 import math
+import random
 import threading
 import time
 import tkinter as tk
@@ -59,11 +60,10 @@ CONDITIONS = {
 	"interval": "固定間隔",
 	"hp_below": "血量低於 (%)",
 	"status_missing": "狀態圖示消失",
-	"nearest_red_dot": "最近紅點距離小於 (px)",
-	"red_dot_navigation": "紅點導航（避開藍點）",
 }
 
 VISION_REGIONS = ("色框1 血量", "色框2 狀態", "色框3 地圖")
+RULE_REGIONS = ("色框1 血量", "色框2 狀態")
 
 
 class VisionReader:
@@ -128,7 +128,12 @@ class VisionReader:
 			return None
 		red_points, blue_points = self.detect_map_points(image)
 		if not red_points:
-			return None
+			center = (image.size[0] / 2, image.size[1] / 2)
+			if blue_points:
+				closest_blue = min(blue_points, key=lambda point: self.distance(center, point))
+				move_vector = (center[0] - closest_blue[0], center[1] - closest_blue[1])
+				return {"direction": self.vector_direction(move_vector), "red_distance": None, "reason": "隨機移動時避開藍點"}
+			return {"direction": random.choice(("left", "right", "up", "down")), "red_distance": None, "reason": "隨機移動"}
 		width, height = image.size
 		center = (width / 2, height / 2)
 		red_target = min(red_points, key=lambda point: self.distance(center, point))
@@ -220,7 +225,7 @@ class AutomationEngine:
 	def run(self):
 		self.app.set_status("執行中", "#5ee0a0")
 		while not self.stop_event.is_set():
-			rules = sorted((rule for rule in self.app.rules if rule.enabled and rule.condition != "red_dot_navigation"), key=lambda item: item.priority)
+			rules = sorted((rule for rule in self.app.rules if rule.enabled), key=lambda item: item.priority)
 			fired = False
 			for rule in rules:
 				if self.stop_event.is_set():
@@ -235,21 +240,44 @@ class AutomationEngine:
 
 	def run_navigation(self):
 		while not self.stop_event.is_set():
-			navigation_rules = sorted((rule for rule in self.app.rules if rule.enabled and rule.condition == "red_dot_navigation"), key=lambda item: item.priority)
-			fired = False
-			for rule in navigation_rules:
-				if self.stop_event.is_set():
-					break
-				if self.is_ready(rule) and self.condition_matches(rule):
-					self.trigger_navigation_rule(rule)
-					fired = True
-					break
-			if not fired:
-				self.stop_event.wait(0.08)
+			config = self.app.navigation_config
+			if not config["enabled"]:
+				self.stop_event.wait(0.1)
+				continue
+			decision = self.reader.navigation_decision("色框3 地圖", config["avoid_radius"])
+			if decision:
+				self.trigger_navigation_step(decision)
+			else:
+				self.app.log("導航：色框3 尚未偵測到紅點，暫停移動")
+			self.stop_event.wait(0.08)
 
-	def trigger_navigation_rule(self, rule):
-		self.last_run[rule.name] = time.time()
-		self.trigger_navigation(rule)
+	def trigger_navigation_step(self, decision):
+		config = self.app.navigation_config
+		key = self.navigation_key(config["keys"], decision["direction"])
+		self.app.log(f"導航更新：{decision['reason']} → {key}")
+		if pyautogui is None:
+			return
+		self.app.focus_target()
+		pyautogui.keyDown(key)
+		self.stop_event.wait(config["hold"])
+		pyautogui.keyUp(key)
+		if config["roll"]:
+			pyautogui.press("space")
+		self.try_teleport(config)
+
+	def try_teleport(self, config):
+		if not config["teleport"] or pyautogui is None:
+			return
+		cooldown = config["teleport_cooldown"]
+		if time.monotonic() - self.app.engine.last_teleport < cooldown:
+			return
+		key = config["teleport_key"]
+		if not key:
+			return
+		self.app.focus_target()
+		pyautogui.press(key)
+		self.app.engine.last_teleport = time.monotonic()
+		self.app.log(f"瞬移：{key}（冷卻 {cooldown:g}s）")
 
 	def is_ready(self, rule):
 		return time.time() - self.last_run.get(rule.name, 0) >= max(0.05, rule.cooldown)
@@ -264,19 +292,10 @@ class AutomationEngine:
 		if rule.condition == "status_missing":
 			present = self.reader.status_present(rule.region, rule.icon_path, float(rule.value or 0.8))
 			return present is False
-		if rule.condition == "nearest_red_dot":
-			distance = self.reader.nearest_red_dot()
-			return distance is not None and distance <= float(rule.value)
-		if rule.condition == "red_dot_navigation":
-			decision = self.reader.navigation_decision(rule.region, float(rule.value or 80))
-			return decision is not None
 		return False
 
 	def trigger(self, rule):
 		self.last_run[rule.name] = time.time()
-		if rule.condition == "red_dot_navigation":
-			self.trigger_navigation(rule)
-			return
 		key = rule.key
 		self.app.log(f"觸發：{rule.name} → {key}")
 		if pyautogui is None:
@@ -340,6 +359,18 @@ class App(tk.Tk):
 		self.selected_rule_index = None
 		self.drag_index = None
 		self.resource_dir = Path(__file__).parent / "resources" / "status_icons"
+		self.navigation_enabled = tk.BooleanVar(value=False)
+		self.roll_enabled = tk.BooleanVar(value=False)
+		self.teleport_enabled = tk.BooleanVar(value=False)
+		self.teleport_key_var = tk.StringVar(value="e")
+		self.teleport_cooldown_var = tk.StringVar(value="10")
+		self.navigation_key_var = tk.StringVar(value="a,d,w,s")
+		self.navigation_hold_var = tk.StringVar(value="0.12")
+		self.navigation_avoid_radius_var = tk.StringVar(value="80")
+		self.navigation_config = {}
+		for variable in (self.navigation_enabled, self.roll_enabled, self.teleport_enabled, self.teleport_key_var, self.teleport_cooldown_var, self.navigation_key_var, self.navigation_hold_var, self.navigation_avoid_radius_var):
+			variable.trace_add("write", lambda *_args: self.sync_navigation_config())
+		self.sync_navigation_config()
 		self.engine = AutomationEngine(self)
 		self.protocol("WM_DELETE_WINDOW", self.close)
 		self.build_style()
@@ -413,7 +444,7 @@ class App(tk.Tk):
 			elif key == "condition":
 				widget = ttk.Combobox(right, textvariable=variable, state="readonly", values=list(CONDITIONS.values()), width=22)
 			elif key == "region":
-				widget = ttk.Combobox(right, textvariable=variable, state="readonly", values=VISION_REGIONS, width=22)
+				widget = ttk.Combobox(right, textvariable=variable, state="readonly", values=RULE_REGIONS, width=22)
 			elif key == "icon":
 				widget = ttk.Combobox(right, textvariable=variable, state="readonly", values=(), width=22)
 			else:
@@ -422,7 +453,7 @@ class App(tk.Tk):
 				widget.grid(row=row, column=1, sticky="ew", padx=(14, 0), pady=6)
 			self.field_widgets[key] = widget
 		ttk.Separator(right).grid(row=10, column=0, columnspan=2, sticky="ew", pady=5)
-		tk.Label(right, text="導航按鍵格式：左,右,上,下，例如 a,d,w,s", foreground="#8fa4b2").grid(row=10, column=1, sticky="w", pady=(0, 5))
+		tk.Label(right, text="色框3已移至下方獨立控制，不列入規則優先序", foreground="#8fa4b2").grid(row=10, column=1, sticky="w", pady=(0, 5))
 		ttk.Label(right, text="視覺區域（相對目標視窗）", font=("Segoe UI", 11, "bold")).grid(row=11, column=0, columnspan=2, sticky="w", pady=(14, 8))
 		for row, region in enumerate(("色框1 血量", "色框2 狀態", "色框3 地圖"), 12):
 			ttk.Label(right, text=region).grid(row=row, column=0, sticky="w", pady=5)
@@ -434,6 +465,20 @@ class App(tk.Tk):
 			ttk.Button(field, text="框選", command=lambda name=region: self.select_region(name)).pack(side="left", padx=(5, 0))
 		ttk.Label(right, text="格式：相對 x,y,width,height", foreground="#8fa4b2").grid(row=15, column=1, sticky="w", pady=(2, 14))
 		ttk.Label(right, text="色框2 狀態圖示（每行一個）", font=("Segoe UI", 11, "bold")).grid(row=16, column=0, columnspan=2, sticky="w", pady=(4, 6))
+		tk.Label(right, text="色框3 獨立移動控制", font=("Segoe UI", 11, "bold")).grid(row=20, column=0, columnspan=2, sticky="w", pady=(4, 8))
+		tk.Checkbutton(right, text="啟用色框3隨機移動 / 紅點導航", variable=self.navigation_enabled).grid(row=21, column=0, columnspan=2, sticky="w", pady=4)
+		tk.Label(right, text="移動按鍵（左,右,上,下）").grid(row=22, column=0, sticky="w", pady=4)
+		tk.Entry(right, textvariable=self.navigation_key_var, width=25).grid(row=22, column=1, sticky="ew", padx=(14, 0), pady=4)
+		tk.Label(right, text="藍點避讓距離").grid(row=23, column=0, sticky="w", pady=4)
+		tk.Entry(right, textvariable=self.navigation_avoid_radius_var, width=25).grid(row=23, column=1, sticky="ew", padx=(14, 0), pady=4)
+		tk.Label(right, text="移動按住秒數").grid(row=24, column=0, sticky="w", pady=4)
+		ttk.Entry(right, textvariable=self.navigation_hold_var, width=25).grid(row=24, column=1, sticky="ew", padx=(14, 0), pady=4)
+		tk.Checkbutton(right, text="移動後使用空白鍵翻滾", variable=self.roll_enabled).grid(row=25, column=0, columnspan=2, sticky="w", pady=4)
+		tk.Checkbutton(right, text="啟用瞬移技能", variable=self.teleport_enabled).grid(row=26, column=0, columnspan=2, sticky="w", pady=4)
+		tk.Label(right, text="瞬移按鍵").grid(row=27, column=0, sticky="w", pady=4)
+		tk.Entry(right, textvariable=self.teleport_key_var, width=25).grid(row=27, column=1, sticky="ew", padx=(14, 0), pady=4)
+		tk.Label(right, text="瞬移最小間隔（秒）").grid(row=28, column=0, sticky="w", pady=4)
+		tk.Entry(right, textvariable=self.teleport_cooldown_var, width=25).grid(row=28, column=1, sticky="ew", padx=(14, 0), pady=4)
 		status_toolbar = ttk.Frame(right)
 		status_toolbar.grid(row=17, column=0, columnspan=2, sticky="ew", pady=(0, 5))
 		self.status_name_var = tk.StringVar()
@@ -454,7 +499,7 @@ class App(tk.Tk):
 		self.sample_rules()
 
 	def sample_rules(self):
-		self.rules = [Rule("低血量保命", True, 1, "hp_below", "35", "F1", 0.12, 3.0, "色框1 血量"), Rule("補上狀態", True, 2, "status_missing", "0.8", "2", 0.15, 8.0, "色框2 狀態", "護盾"), Rule("紅點導航", True, 3, "red_dot_navigation", "80", "a,d,w,s", 0.12, 0.3, "色框3 地圖"), Rule("週期技能", True, 4, "interval", "5", "3", 0.1, 5.0, "色框3 地圖")]
+		self.rules = [Rule("低血量保命", True, 1, "hp_below", "35", "F1", 0.12, 3.0, "色框1 血量"), Rule("補上狀態", True, 2, "status_missing", "0.8", "2", 0.15, 8.0, "色框2 狀態", "護盾"), Rule("週期技能", True, 3, "interval", "5", "3", 0.1, 5.0, "色框1 血量")]
 		self.refresh_tree()
 		self.log("已載入範例規則；視覺區域需依遊戲畫面填入座標。")
 
@@ -617,10 +662,38 @@ class App(tk.Tk):
 	def start(self):
 		self.parse_regions()
 		self.parse_status_icons()
-		if not self.rules:
-			messagebox.showinfo("提示", "請先新增至少一條規則。")
+		self.sync_navigation_config()
+		if not self.rules and not self.navigation_enabled.get():
+			messagebox.showinfo("提示", "請先新增規則或啟用色框3移動。")
 			return
 		self.engine.start()
+
+	def sync_navigation_config(self):
+		try:
+			hold = max(0.02, float(self.navigation_hold_var.get()))
+		except ValueError:
+			hold = 0.12
+		try:
+			avoid_radius = max(1.0, float(self.navigation_avoid_radius_var.get()))
+		except ValueError:
+			avoid_radius = 80.0
+		try:
+			teleport_cooldown = max(0.1, float(self.teleport_cooldown_var.get()))
+		except ValueError:
+			teleport_cooldown = 10.0
+		self.navigation_config = {"enabled": bool(self.navigation_enabled.get()), "roll": bool(self.roll_enabled.get()), "teleport": bool(self.teleport_enabled.get()), "keys": self.navigation_key_var.get().strip() or "a,d,w,s", "hold": hold, "avoid_radius": avoid_radius, "teleport_key": self.teleport_key_var.get().strip(), "teleport_cooldown": teleport_cooldown}
+
+	def navigation_hold(self):
+		try:
+			return max(0.02, float(self.navigation_hold_var.get()))
+		except ValueError:
+			return 0.12
+
+	def navigation_avoid_radius(self):
+		try:
+			return max(1.0, float(self.navigation_avoid_radius_var.get()))
+		except ValueError:
+			return 80.0
 
 	def stop(self):
 		self.engine.stop()
@@ -777,7 +850,7 @@ class App(tk.Tk):
 			return
 		self.parse_regions()
 		self.parse_status_icons()
-		data = {"target": self.target_var.get(), "window": self.window_var.get(), "regions": self.regions, "status_icons": self.status_icons, "rules": [asdict(rule) for rule in self.rules]}
+		data = {"target": self.target_var.get(), "window": self.window_var.get(), "regions": self.regions, "status_icons": self.status_icons, "rules": [asdict(rule) for rule in self.rules], "navigation": {"enabled": self.navigation_enabled.get(), "keys": self.navigation_key_var.get(), "hold": self.navigation_hold_var.get(), "avoid_radius": self.navigation_avoid_radius_var.get(), "roll": self.roll_enabled.get(), "teleport": self.teleport_enabled.get(), "teleport_key": self.teleport_key_var.get(), "teleport_cooldown": self.teleport_cooldown_var.get()}}
 		Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 		self.log(f"設定已儲存：{Path(path).name}")
 
@@ -789,6 +862,15 @@ class App(tk.Tk):
 			data = json.loads(Path(path).read_text(encoding="utf-8"))
 			self.target_var.set(data.get("target", ""))
 			self.window_var.set(data.get("window", "尚未選擇"))
+			navigation = data.get("navigation", {})
+			self.navigation_enabled.set(bool(navigation.get("enabled", False)))
+			self.navigation_key_var.set(str(navigation.get("keys", "a,d,w,s")))
+			self.navigation_hold_var.set(str(navigation.get("hold", "0.12")))
+			self.navigation_avoid_radius_var.set(str(navigation.get("avoid_radius", "80")))
+			self.roll_enabled.set(bool(navigation.get("roll", False)))
+			self.teleport_enabled.set(bool(navigation.get("teleport", False)))
+			self.teleport_key_var.set(str(navigation.get("teleport_key", "e")))
+			self.teleport_cooldown_var.set(str(navigation.get("teleport_cooldown", "10")))
 			for key, value in data.get("regions", {}).items():
 				self.region_vars.setdefault(key, tk.StringVar()).set(",".join(map(str, value)))
 			for region in ("色框1 血量", "色框2 狀態", "色框3 地圖"):
@@ -805,6 +887,8 @@ class App(tk.Tk):
 			self.rules = []
 			for item in data.get("rules", []):
 				item = dict(item)
+				if item.get("condition") == "red_dot_navigation":
+					continue
 				if item.get("condition") == "status_missing" and item.get("region") not in VISION_REGIONS:
 					item["icon"] = item.get("region", "")
 					item["region"] = "色框2 狀態"
