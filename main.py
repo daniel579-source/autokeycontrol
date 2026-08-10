@@ -368,6 +368,7 @@ class App(tk.Tk):
 		self.navigation_hold_var = tk.StringVar(value="0.12")
 		self.navigation_avoid_radius_var = tk.StringVar(value="80")
 		self.navigation_config = {}
+		self.active_scroll_canvas = None
 		for variable in (self.navigation_enabled, self.roll_enabled, self.teleport_enabled, self.teleport_key_var, self.teleport_cooldown_var, self.navigation_key_var, self.navigation_hold_var, self.navigation_avoid_radius_var):
 			variable.trace_add("write", lambda *_args: self.sync_navigation_config())
 		self.sync_navigation_config()
@@ -414,12 +415,33 @@ class App(tk.Tk):
 		body.pack(fill="both", expand=True, padx=28, pady=(0, 20))
 		left = ttk.Frame(body, style="Panel.TFrame", padding=16)
 		left.pack(side="left", fill="both", expand=True)
-		right = ttk.Frame(body, style="Panel.TFrame", padding=16)
-		right.pack(side="right", fill="y", padx=(16, 0))
+		right_shell = ttk.Frame(body, style="Panel.TFrame", width=390)
+		right_shell.pack(side="right", fill="y", padx=(16, 0))
+		right_canvas = tk.Canvas(right_shell, bg="#17212b", highlightthickness=0, width=360)
+		right_scroll = ttk.Scrollbar(right_shell, orient="vertical", command=right_canvas.yview)
+		right_canvas.configure(yscrollcommand=right_scroll.set)
+		right_canvas.pack(side="left", fill="both", expand=True)
+		right_scroll.pack(side="right", fill="y")
+		right = ttk.Frame(right_canvas, style="Panel.TFrame", padding=16)
+		right_window = right_canvas.create_window((0, 0), window=right, anchor="nw")
+		right.bind("<Configure>", lambda _event: right_canvas.configure(scrollregion=right_canvas.bbox("all")))
+		right_canvas.bind("<Configure>", lambda event: right_canvas.itemconfigure(right_window, width=event.width))
+		right_canvas.bind("<Enter>", lambda _event: self.set_scroll_canvas(right_canvas))
 		ttk.Label(left, text="規則優先序", font=("Segoe UI", 13, "bold")).pack(anchor="w")
 		ttk.Label(left, text="卡片由上到下執行；使用上移 / 下移調整優先順序。", foreground="#8fa4b2").pack(anchor="w", pady=(3, 12))
-		self.cards_frame = ttk.Frame(left, style="Panel.TFrame")
-		self.cards_frame.pack(fill="both", expand=True)
+		cards_shell = ttk.Frame(left, style="Panel.TFrame")
+		cards_shell.pack(fill="both", expand=True)
+		cards_canvas = tk.Canvas(cards_shell, bg="#17212b", highlightthickness=0)
+		cards_scroll = ttk.Scrollbar(cards_shell, orient="vertical", command=cards_canvas.yview)
+		cards_canvas.configure(yscrollcommand=cards_scroll.set)
+		cards_canvas.pack(side="left", fill="both", expand=True)
+		cards_scroll.pack(side="right", fill="y")
+		self.cards_frame = ttk.Frame(cards_canvas, style="Panel.TFrame")
+		cards_window = cards_canvas.create_window((0, 0), window=self.cards_frame, anchor="nw")
+		self.cards_frame.bind("<Configure>", lambda _event: cards_canvas.configure(scrollregion=cards_canvas.bbox("all")))
+		cards_canvas.bind("<Configure>", lambda event: cards_canvas.itemconfigure(cards_window, width=event.width))
+		cards_canvas.bind("<Enter>", lambda _event: self.set_scroll_canvas(cards_canvas))
+		self.bind_all("<MouseWheel>", self.scroll_active_panel)
 		actions = ttk.Frame(left)
 		actions.pack(fill="x", pady=(12, 0))
 		ttk.Button(actions, text="新增規則", command=self.new_rule).pack(side="left")
@@ -497,6 +519,13 @@ class App(tk.Tk):
 		ttk.Button(footer, text="開始執行", style="Accent.TButton", command=self.start).pack(side="right")
 		ttk.Button(footer, text="停止", command=self.stop).pack(side="right", padx=8)
 		self.sample_rules()
+
+	def set_scroll_canvas(self, canvas):
+		self.active_scroll_canvas = canvas
+
+	def scroll_active_panel(self, event):
+		if self.active_scroll_canvas is not None:
+			self.active_scroll_canvas.yview_scroll(int(-event.delta / 120), "units")
 
 	def sample_rules(self):
 		self.rules = [Rule("低血量保命", True, 1, "hp_below", "35", "F1", 0.12, 3.0, "色框1 血量"), Rule("補上狀態", True, 2, "status_missing", "0.8", "2", 0.15, 8.0, "色框2 狀態", "護盾"), Rule("週期技能", True, 3, "interval", "5", "3", 0.1, 5.0, "色框1 血量")]
