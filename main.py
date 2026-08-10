@@ -487,6 +487,8 @@ class App(tk.Tk):
 		self.regions = {}
 		self.region_vars = {}
 		self.status_icons = {}
+		self.status_name_var = tk.StringVar()
+		self.status_key_var = tk.StringVar()
 		self.selected_rule_index = None
 		self.drag_index = None
 		self.resource_dir = Path(__file__).parent / "resources" / "status_icons"
@@ -716,12 +718,12 @@ class App(tk.Tk):
 		IOSEntry(right, textvariable=self.teleport_cooldown_var, width=25).grid(row=28, column=1, sticky="ew", padx=(14, 0), pady=4)
 		status_toolbar = ttk.Frame(right)
 		status_toolbar.grid(row=17, column=0, columnspan=2, sticky="ew", pady=(0, 5))
-		self.status_name_var = tk.StringVar()
-		IOSEntry(status_toolbar, textvariable=self.status_name_var, width=19).pack(side="left")
+		IOSEntry(status_toolbar, textvariable=self.status_name_var, width=15).pack(side="left")
+		IOSEntry(status_toolbar, textvariable=self.status_key_var, width=8).pack(side="left", padx=(6, 0))
 		IOSButton(status_toolbar, text="框選並加入", command=self.select_status_icon).pack(side="left", padx=(5, 0))
 		self.status_text = tk.Text(right, height=4, width=35, bg="#FFFFFF", fg="#1C1C1E", insertbackground="#007AFF", relief="flat", highlightthickness=1, highlightbackground="#D1D1D6")
 		self.status_text.grid(row=18, column=0, columnspan=2, sticky="ew")
-		tk.Label(right, text="輸入狀態名稱後按框選；規則的狀態圖示名稱需相同", foreground="#8E8E93", wraplength=270).grid(row=19, column=0, columnspan=2, sticky="w", pady=(4, 12))
+		tk.Label(right, text="上方依序輸入：狀態名稱、缺少時施放按鍵；框選後會保存為該狀態資源", foreground="#8E8E93", wraplength=270).grid(row=19, column=0, columnspan=2, sticky="w", pady=(4, 12))
 
 		footer = ttk.Frame(self)
 		footer.pack(fill="x", padx=28, pady=(0, 20))
@@ -831,6 +833,8 @@ class App(tk.Tk):
 		for key in self.fields:
 			value = CONDITIONS.get(rule.condition, rule.condition) if key == "condition" else getattr(rule, key)
 			self.fields[key].set(str(value))
+		if rule.condition == "status_missing" and rule.icon in self.status_icons:
+			self.fields["key"].set(self.status_icons[rule.icon].get("apply_key", rule.key))
 		self.enabled_var.set(rule.enabled)
 		self.field_widgets["icon"]["values"] = tuple(self.status_icons.keys())
 		self.update_action_label(rule.condition)
@@ -869,7 +873,10 @@ class App(tk.Tk):
 			rule.cooldown = float(values["cooldown"] or 1)
 			rule.region = values["region"]
 			rule.icon = values["icon"]
-			rule.icon_path = str(self.status_icons.get(rule.icon, {}).get("path", ""))
+			icon_data = self.status_icons.get(rule.icon, {})
+			rule.icon_path = str(icon_data.get("path", ""))
+			if rule.condition == "status_missing" and rule.icon in self.status_icons:
+				self.status_icons[rule.icon]["apply_key"] = rule.key
 			rule.enabled = self.enabled_var.get()
 		except (ValueError, IndexError):
 			messagebox.showerror("資料格式錯誤", "優先度、按住秒數與冷卻秒數必須是數字。")
@@ -904,10 +911,13 @@ class App(tk.Tk):
 				continue
 			name, data = line.split("=", 1)
 			try:
-				coordinate_text, _, path = data.partition("|")
+				parts = data.split("|", 2)
+				coordinate_text = parts[0]
+				path = parts[1] if len(parts) > 1 else ""
+				apply_key = parts[2].strip() if len(parts) > 2 else ""
 				values = tuple(int(item.strip()) for item in coordinate_text.split(","))
 				if name.strip() and len(values) == 4:
-					result[name.strip()] = {"region": values, "path": path.strip()}
+					result[name.strip()] = {"region": values, "path": path.strip(), "apply_key": apply_key}
 			except ValueError:
 				continue
 		self.status_icons = result
@@ -1028,14 +1038,19 @@ class App(tk.Tk):
 
 		def save_status(region):
 			path = self.save_icon_resource(name, region)
+			apply_key = self.status_key_var.get().strip()
+			if not apply_key:
+				messagebox.showinfo("需要施放按鍵", "請輸入此狀態缺少時要施放的按鍵。")
+				return
 			lines = []
 			for line in self.status_text.get("1.0", "end").splitlines():
 				if "=" in line and line.split("=", 1)[0].strip() != name:
 					lines.append(line)
-			lines.append(f"{name}={','.join(map(str, region))}|{path}")
+			lines.append(f"{name}={','.join(map(str, region))}|{path}|{apply_key}")
 			self.status_text.delete("1.0", "end")
 			self.status_text.insert("1.0", "\n".join(lines))
 			self.status_name_var.set("")
+			self.status_key_var.set("")
 
 		self.open_region_selector(save_status)
 
@@ -1143,11 +1158,11 @@ class App(tk.Tk):
 			self.status_icons = {}
 			for key, value in data.get("status_icons", {}).items():
 				if isinstance(value, dict):
-					self.status_icons[key] = value
+					self.status_icons[key] = {**value, "apply_key": value.get("apply_key", "")}
 				else:
-					self.status_icons[key] = {"region": tuple(value), "path": ""}
+					self.status_icons[key] = {"region": tuple(value), "path": "", "apply_key": ""}
 			self.status_text.delete("1.0", "end")
-			self.status_text.insert("1.0", "\n".join(f"{key}={','.join(map(str, value.get('region', ())))}|{value.get('path', '')}" for key, value in self.status_icons.items()))
+			self.status_text.insert("1.0", "\n".join(f"{key}={','.join(map(str, value.get('region', ())))}|{value.get('path', '')}|{value.get('apply_key', '')}" for key, value in self.status_icons.items()))
 			self.rules = []
 			for item in data.get("rules", []):
 				item = dict(item)
