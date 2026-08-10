@@ -52,6 +52,7 @@ class IOSSwitch(tk.Frame):
 		except tk.TclError:
 			background = "#17212b"
 		super().__init__(parent, width=self.WIDTH, height=self.HEIGHT, bg=background, highlightthickness=0, padx=0, pady=0)
+		self.pack_propagate(False)
 		self.variable = variable
 		self.command = command
 		self.canvas = tk.Canvas(self, width=self.WIDTH, height=self.HEIGHT, bg=self.cget("background"), highlightthickness=0, cursor="hand2")
@@ -390,8 +391,8 @@ class App(tk.Tk):
 	def __init__(self):
 		super().__init__()
 		self.title(f"AUTOKEY CONTROL {APP_VERSION}  /  視覺條件自動化")
-		self.geometry("1120x720")
-		self.minsize(920, 620)
+		self.geometry("1280x780")
+		self.minsize(1120, 680)
 		self.configure(bg="#10161d")
 		self.rules = []
 		self.regions = {}
@@ -533,7 +534,8 @@ class App(tk.Tk):
 		tk.Label(right, text="色框3 獨立移動控制", font=("Segoe UI", 11, "bold")).grid(row=20, column=0, columnspan=2, sticky="w", pady=(4, 8))
 		navigation_toggle = ttk.Frame(right)
 		navigation_toggle.grid(row=21, column=0, columnspan=2, sticky="w", pady=4)
-		IOSSwitch(navigation_toggle, self.navigation_enabled).pack(side="left", padx=2, pady=1)
+		ttk.Label(navigation_toggle, text="啟用色框3隨機移動 / 紅點導航").pack(side="left")
+		IOSSwitch(navigation_toggle, self.navigation_enabled).pack(side="left", padx=(14, 0), pady=1)
 		tk.Label(right, text="移動按鍵（左,右,上,下）").grid(row=22, column=0, sticky="w", pady=4)
 		tk.Entry(right, textvariable=self.navigation_key_var, width=25).grid(row=22, column=1, sticky="ew", padx=(14, 0), pady=4)
 		tk.Label(right, text="藍點避讓距離").grid(row=23, column=0, sticky="w", pady=4)
@@ -542,10 +544,12 @@ class App(tk.Tk):
 		ttk.Entry(right, textvariable=self.navigation_hold_var, width=25).grid(row=24, column=1, sticky="ew", padx=(14, 0), pady=4)
 		roll_toggle = ttk.Frame(right)
 		roll_toggle.grid(row=25, column=0, columnspan=2, sticky="w", pady=4)
-		IOSSwitch(roll_toggle, self.roll_enabled).pack(side="left", padx=2, pady=1)
+		ttk.Label(roll_toggle, text="移動後使用空白鍵翻滾").pack(side="left")
+		IOSSwitch(roll_toggle, self.roll_enabled).pack(side="left", padx=(14, 0), pady=1)
 		teleport_toggle = ttk.Frame(right)
 		teleport_toggle.grid(row=26, column=0, columnspan=2, sticky="w", pady=4)
-		IOSSwitch(teleport_toggle, self.teleport_enabled).pack(side="left", padx=2, pady=1)
+		ttk.Label(teleport_toggle, text="啟用瞬移技能").pack(side="left")
+		IOSSwitch(teleport_toggle, self.teleport_enabled).pack(side="left", padx=(14, 0), pady=1)
 		tk.Label(right, text="瞬移按鍵").grid(row=27, column=0, sticky="w", pady=4)
 		tk.Entry(right, textvariable=self.teleport_key_var, width=25).grid(row=27, column=1, sticky="ew", padx=(14, 0), pady=4)
 		tk.Label(right, text="瞬移最小間隔（秒）").grid(row=28, column=0, sticky="w", pady=4)
