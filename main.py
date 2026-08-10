@@ -530,8 +530,12 @@ class App(tk.Tk):
 	def refresh_theme_widgets(self, parent):
 		for widget in parent.winfo_children():
 			if isinstance(widget, IOSSwitch):
-				widget.configure(bg=IOS_THEME["panel"])
-				widget.canvas.configure(bg=IOS_THEME["panel"])
+				try:
+					background = widget.master.cget("background")
+				except tk.TclError:
+					background = IOS_THEME["panel"]
+				widget.configure(bg=background)
+				widget.canvas.configure(bg=background)
 				widget.refresh()
 			elif isinstance(widget, IOSPrimaryButton):
 				widget.configure(bg=IOS_THEME["primary"], activebackground=IOS_THEME["primary_active"])
@@ -539,6 +543,8 @@ class App(tk.Tk):
 				widget.configure(bg=IOS_THEME["button"], fg=IOS_THEME["text"], activebackground=IOS_THEME["button_active"])
 			elif isinstance(widget, IOSEntry):
 				widget.configure(bg=IOS_THEME["field"], fg=IOS_THEME["text"], highlightbackground=IOS_THEME["border"], highlightcolor=IOS_THEME["primary"])
+			elif isinstance(widget, IOSScrollbar):
+				widget.configure(bg=IOS_THEME["button"], activebackground=IOS_THEME["primary_active"], troughcolor=IOS_THEME["background"])
 			elif isinstance(widget, tk.Canvas):
 				widget.configure(bg=IOS_THEME["panel"])
 			elif isinstance(widget, tk.Frame):
@@ -722,8 +728,8 @@ class App(tk.Tk):
 		for child in self.cards_frame.winfo_children():
 			child.destroy()
 		for index, rule in enumerate(self.rules):
-			card = tk.Frame(self.cards_frame, bg=IOS_THEME["card"], highlightthickness=1, highlightbackground=IOS_THEME["border"], padx=10, pady=8)
-			card.pack(fill="x", pady=(0, 8))
+			card = tk.Frame(self.cards_frame, bg=IOS_THEME["card"], highlightthickness=2, highlightbackground=IOS_THEME["border"], padx=14, pady=10)
+			card.pack(fill="x", pady=(0, 12))
 			card.bind("<Button-1>", lambda _event, value=index: self.select_rule(value))
 			card.bind("<ButtonPress-1>", lambda _event, value=index: self.begin_drag(value))
 			card.bind("<ButtonRelease-1>", self.finish_drag)
@@ -732,16 +738,16 @@ class App(tk.Tk):
 			tk.Label(card, text=condition, background=IOS_THEME["card"], foreground=IOS_THEME["secondary"]).pack(side="left", padx=12)
 			tk.Label(card, text=f"按鍵 {rule.key}  冷卻 {rule.cooldown}s", background=IOS_THEME["card"], foreground=IOS_THEME["secondary"]).pack(side="left")
 			enabled_var = tk.BooleanVar(value=rule.enabled)
-			IOSSwitch(card, enabled_var, command=lambda value=index, variable=enabled_var: self.toggle_rule(value, variable.get())).pack(side="right", padx=(0, 18), pady=1)
-			IOSButton(card, text="上移", command=lambda value=index: self.move_rule(value, -1)).pack(side="right", padx=(0, 10))
-			IOSButton(card, text="下移", command=lambda value=index: self.move_rule(value, 1)).pack(side="right", padx=(0, 10))
+			IOSSwitch(card, enabled_var, command=lambda value=index, variable=enabled_var: self.toggle_rule(value, variable.get())).pack(side="right", padx=(0, 24), pady=2)
+			IOSButton(card, text="上移", command=lambda value=index: self.move_rule(value, -1)).pack(side="right", padx=(0, 14), pady=2)
+			IOSButton(card, text="下移", command=lambda value=index: self.move_rule(value, 1)).pack(side="right", padx=(0, 14), pady=2)
 			for child in card.winfo_children():
 				if isinstance(child, tk.Label):
 					child.bind("<Button-1>", lambda _event, value=index: self.select_rule(value))
 					child.bind("<ButtonPress-1>", lambda _event, value=index: self.begin_drag(value))
 					child.bind("<ButtonRelease-1>", self.finish_drag)
 			if index == self.selected_rule_index:
-				card.configure(highlightbackground="#007AFF")
+				card.configure(highlightbackground=IOS_THEME["primary"])
 
 	def toggle_rule(self, index, enabled):
 		if index < 0 or index >= len(self.rules):
