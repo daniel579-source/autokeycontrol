@@ -253,15 +253,11 @@ class AutomationEngine:
 
 	def trigger(self, rule):
 		self.last_run[rule.name] = time.time()
-		key = rule.key
 		if rule.condition == "red_dot_navigation":
-			decision = self.reader.navigation_decision(rule.region, float(rule.value or 80))
-			if not decision:
-				return
-			key = self.navigation_key(rule.key, decision["direction"])
-			self.app.log(f"導航：{decision['reason']} → {key}")
-		else:
-			self.app.log(f"觸發：{rule.name} → {key}")
+			self.trigger_navigation(rule)
+			return
+		key = rule.key
+		self.app.log(f"觸發：{rule.name} → {key}")
 		if pyautogui is None:
 			self.app.log("預覽模式：尚未安裝 pyautogui，未送出按鍵")
 			return
@@ -269,6 +265,37 @@ class AutomationEngine:
 		pyautogui.keyDown(key)
 		time.sleep(max(0, rule.hold))
 		pyautogui.keyUp(key)
+
+	def trigger_navigation(self, rule):
+		avoid_radius = float(rule.value or 80)
+		hold_seconds = max(0.05, rule.hold)
+		started = time.monotonic()
+		active_key = None
+		preview_logged = False
+		while not self.stop_event.is_set() and time.monotonic() - started < hold_seconds:
+			decision = self.reader.navigation_decision(rule.region, avoid_radius)
+			if not decision:
+				if active_key and pyautogui is not None:
+					pyautogui.keyUp(active_key)
+				active_key = None
+				self.app.log("導航：色框3 尚未偵測到紅點，暫停移動")
+				self.stop_event.wait(0.08)
+				continue
+			key = self.navigation_key(rule.key, decision["direction"])
+			if key != active_key:
+				if active_key and pyautogui is not None:
+					pyautogui.keyUp(active_key)
+				active_key = key
+				self.app.log(f"導航更新：{decision['reason']} → {key}")
+				if pyautogui is not None:
+					self.app.focus_target()
+					pyautogui.keyDown(active_key)
+			elif pyautogui is None and not preview_logged:
+				self.app.log(f"預覽導航：{decision['reason']} → {key}")
+				preview_logged = True
+			self.stop_event.wait(min(0.08, max(0.01, hold_seconds - (time.monotonic() - started))))
+		if active_key and pyautogui is not None:
+			pyautogui.keyUp(active_key)
 
 	@staticmethod
 	def navigation_key(mapping, direction):
