@@ -42,15 +42,19 @@ APP_VERSION = "v1.0.0"
 
 
 class IOSSwitch(tk.Frame):
+	WIDTH = 48
+	HEIGHT = 28
+	KNOB = 22
+
 	def __init__(self, parent, variable, command=None):
 		try:
 			background = parent.cget("background")
 		except tk.TclError:
 			background = "#17212b"
-		super().__init__(parent, width=54, height=30, bg=background, highlightthickness=0)
+		super().__init__(parent, width=self.WIDTH, height=self.HEIGHT, bg=background, highlightthickness=0, padx=0, pady=0)
 		self.variable = variable
 		self.command = command
-		self.canvas = tk.Canvas(self, width=54, height=30, bg=self.cget("background"), highlightthickness=0, cursor="hand2")
+		self.canvas = tk.Canvas(self, width=self.WIDTH, height=self.HEIGHT, bg=self.cget("background"), highlightthickness=0, cursor="hand2")
 		self.canvas.pack()
 		self.canvas.bind("<Button-1>", self.toggle)
 		self.canvas.bind("<Key-space>", self.toggle)
@@ -71,11 +75,11 @@ class IOSSwitch(tk.Frame):
 		self.canvas.delete("all")
 		on = bool(self.variable.get())
 		track = "#34C759" if on else "#8E8E93"
-		self.canvas.create_oval(2, 2, 28, 28, fill=track, outline=track)
-		self.canvas.create_rectangle(15, 2, 39, 28, fill=track, outline=track)
-		self.canvas.create_oval(26, 2, 52, 28, fill=track, outline=track)
-		knob_x = 27 if on else 1
-		self.canvas.create_oval(knob_x, 3, knob_x + 24, 27, fill="#FFFFFF", outline="#D0D0D0")
+		self.canvas.create_oval(1, 1, self.HEIGHT - 1, self.HEIGHT - 1, fill=track, outline=track)
+		self.canvas.create_rectangle(self.HEIGHT / 2, 1, self.WIDTH - self.HEIGHT / 2, self.HEIGHT - 1, fill=track, outline=track)
+		self.canvas.create_oval(self.WIDTH - self.HEIGHT - 1, 1, self.WIDTH - 1, self.HEIGHT - 1, fill=track, outline=track)
+		knob_x = self.WIDTH - self.KNOB - 2 if on else 2
+		self.canvas.create_oval(knob_x, 3, knob_x + self.KNOB, 25, fill="#FFFFFF", outline="#D0D0D0")
 
 
 @dataclass
@@ -501,7 +505,7 @@ class App(tk.Tk):
 				widget = ttk.Entry(name_field, textvariable=variable, width=15)
 				widget.pack(side="left")
 				self.enabled_var = tk.BooleanVar(value=True)
-				IOSSwitch(name_field, self.enabled_var).pack(side="left", padx=(10, 0))
+				IOSSwitch(name_field, self.enabled_var).pack(side="left", padx=(12, 0), pady=1)
 			elif key == "condition":
 				widget = ttk.Combobox(right, textvariable=variable, state="readonly", values=list(CONDITIONS.values()), width=22)
 			elif key == "region":
@@ -529,7 +533,7 @@ class App(tk.Tk):
 		tk.Label(right, text="色框3 獨立移動控制", font=("Segoe UI", 11, "bold")).grid(row=20, column=0, columnspan=2, sticky="w", pady=(4, 8))
 		navigation_toggle = ttk.Frame(right)
 		navigation_toggle.grid(row=21, column=0, columnspan=2, sticky="w", pady=4)
-		IOSSwitch(navigation_toggle, self.navigation_enabled).pack(side="left")
+		IOSSwitch(navigation_toggle, self.navigation_enabled).pack(side="left", padx=2, pady=1)
 		tk.Label(right, text="移動按鍵（左,右,上,下）").grid(row=22, column=0, sticky="w", pady=4)
 		tk.Entry(right, textvariable=self.navigation_key_var, width=25).grid(row=22, column=1, sticky="ew", padx=(14, 0), pady=4)
 		tk.Label(right, text="藍點避讓距離").grid(row=23, column=0, sticky="w", pady=4)
@@ -538,10 +542,10 @@ class App(tk.Tk):
 		ttk.Entry(right, textvariable=self.navigation_hold_var, width=25).grid(row=24, column=1, sticky="ew", padx=(14, 0), pady=4)
 		roll_toggle = ttk.Frame(right)
 		roll_toggle.grid(row=25, column=0, columnspan=2, sticky="w", pady=4)
-		IOSSwitch(roll_toggle, self.roll_enabled).pack(side="left")
+		IOSSwitch(roll_toggle, self.roll_enabled).pack(side="left", padx=2, pady=1)
 		teleport_toggle = ttk.Frame(right)
 		teleport_toggle.grid(row=26, column=0, columnspan=2, sticky="w", pady=4)
-		IOSSwitch(teleport_toggle, self.teleport_enabled).pack(side="left")
+		IOSSwitch(teleport_toggle, self.teleport_enabled).pack(side="left", padx=2, pady=1)
 		tk.Label(right, text="瞬移按鍵").grid(row=27, column=0, sticky="w", pady=4)
 		tk.Entry(right, textvariable=self.teleport_key_var, width=25).grid(row=27, column=1, sticky="ew", padx=(14, 0), pady=4)
 		tk.Label(right, text="瞬移最小間隔（秒）").grid(row=28, column=0, sticky="w", pady=4)
@@ -591,7 +595,7 @@ class App(tk.Tk):
 			tk.Label(card, text=condition, background="#111a22", foreground="#9fb6c2").pack(side="left", padx=12)
 			tk.Label(card, text=f"按鍵 {rule.key}  冷卻 {rule.cooldown}s", background="#111a22", foreground="#9fb6c2").pack(side="left")
 			enabled_var = tk.BooleanVar(value=rule.enabled)
-			IOSSwitch(card, enabled_var, command=lambda value=index, variable=enabled_var: self.toggle_rule(value, variable.get())).pack(side="right", padx=(0, 10))
+			IOSSwitch(card, enabled_var, command=lambda value=index, variable=enabled_var: self.toggle_rule(value, variable.get())).pack(side="right", padx=(0, 8), pady=1)
 			ttk.Button(card, text="上移", command=lambda value=index: self.move_rule(value, -1)).pack(side="right")
 			ttk.Button(card, text="下移", command=lambda value=index: self.move_rule(value, 1)).pack(side="right", padx=(0, 5))
 			for child in card.winfo_children():
