@@ -83,6 +83,60 @@ class IOSSwitch(tk.Frame):
 		self.canvas.create_oval(knob_x, 3, knob_x + self.KNOB, 25, fill="#FFFFFF", outline="#D0D0D0")
 
 
+class IOSButton(tk.Button):
+	def __init__(self, parent, **kwargs):
+		kwargs.setdefault("relief", "flat")
+		kwargs.setdefault("bd", 0)
+		kwargs.setdefault("bg", "#2C3A47")
+		kwargs.setdefault("fg", "#F4F7F9")
+		kwargs.setdefault("activebackground", "#3E5263")
+		kwargs.setdefault("activeforeground", "#FFFFFF")
+		kwargs.setdefault("font", ("Segoe UI", 10))
+		kwargs.setdefault("padx", 12)
+		kwargs.setdefault("pady", 6)
+		kwargs.setdefault("cursor", "hand2")
+		super().__init__(parent, **kwargs)
+
+
+class IOSPrimaryButton(IOSButton):
+	def __init__(self, parent, **kwargs):
+		kwargs.setdefault("bg", "#0A84FF")
+		kwargs.setdefault("activebackground", "#409CFF")
+		kwargs.setdefault("font", ("Segoe UI", 10, "bold"))
+		super().__init__(parent, **kwargs)
+
+
+class IOSEntry(tk.Entry):
+	def __init__(self, parent, **kwargs):
+		kwargs.setdefault("relief", "flat")
+		kwargs.setdefault("bd", 0)
+		kwargs.setdefault("bg", "#24313D")
+		kwargs.setdefault("fg", "#F4F7F9")
+		kwargs.setdefault("insertbackground", "#FFFFFF")
+		kwargs.setdefault("highlightthickness", 1)
+		kwargs.setdefault("highlightbackground", "#3A4A58")
+		kwargs.setdefault("highlightcolor", "#0A84FF")
+		kwargs.setdefault("font", ("Segoe UI", 10))
+		super().__init__(parent, **kwargs)
+
+
+class IOSCombo(ttk.Combobox):
+	def __init__(self, parent, **kwargs):
+		kwargs.setdefault("style", "IOS.TCombobox")
+		super().__init__(parent, **kwargs)
+
+
+class IOSScrollbar(tk.Scrollbar):
+	def __init__(self, parent, **kwargs):
+		kwargs.setdefault("bg", "#24313D")
+		kwargs.setdefault("activebackground", "#5B7182")
+		kwargs.setdefault("troughcolor", "#17212B")
+		kwargs.setdefault("bd", 0)
+		kwargs.setdefault("width", 12)
+		kwargs.setdefault("highlightthickness", 0)
+		super().__init__(parent, **kwargs)
+
+
 @dataclass
 class Rule:
 	name: str
@@ -429,6 +483,8 @@ class App(tk.Tk):
 		style.configure("Sub.TLabel", background="#10161d", foreground="#8fa4b2", font=("Segoe UI", 10))
 		style.configure("TButton", background="#263744", foreground="#e9f1f5", padding=(12, 7), borderwidth=0)
 		style.map("TButton", background=[("active", "#3b5362")])
+		style.configure("IOS.TCombobox", fieldbackground="#24313D", background="#2C3A47", foreground="#F4F7F9", arrowcolor="#D7E2EA", borderwidth=0, padding=6)
+		style.map("IOS.TCombobox", fieldbackground=[("readonly", "#24313D")], foreground=[("readonly", "#F4F7F9")])
 		style.configure("Accent.TButton", background="#e36d4f", foreground="white", font=("Segoe UI", 10, "bold"))
 		style.map("Accent.TButton", background=[("active", "#f48a68")])
 		style.configure("Treeview", background="#111a22", fieldbackground="#111a22", foreground="#d7e2ea", rowheight=32, borderwidth=0)
@@ -444,14 +500,14 @@ class App(tk.Tk):
 		toolbar.pack(fill="x", padx=28, pady=(0, 14))
 		ttk.Label(toolbar, text="目標視窗標題").pack(side="left")
 		self.target_var = tk.StringVar()
-		ttk.Entry(toolbar, textvariable=self.target_var, width=28).pack(side="left", padx=(10, 8))
-		ttk.Button(toolbar, text="重新整理視窗", command=self.refresh_windows).pack(side="left")
+		IOSEntry(toolbar, textvariable=self.target_var, width=28).pack(side="left", padx=(10, 8))
+		IOSButton(toolbar, text="重新整理視窗", command=self.refresh_windows).pack(side="left")
 		self.window_var = tk.StringVar(value="尚未選擇")
-		self.window_combo = ttk.Combobox(toolbar, textvariable=self.window_var, state="readonly", width=32)
+		self.window_combo = IOSCombo(toolbar, textvariable=self.window_var, state="readonly", width=32)
 		self.window_combo.pack(side="left", padx=8)
 		self.window_combo.bind("<<ComboboxSelected>>", self.on_window_selected)
-		ttk.Button(toolbar, text="儲存設定", command=self.save).pack(side="right", padx=(8, 0))
-		ttk.Button(toolbar, text="載入設定", command=self.load).pack(side="right")
+		IOSButton(toolbar, text="儲存設定", command=self.save).pack(side="right", padx=(8, 0))
+		IOSButton(toolbar, text="載入設定", command=self.load).pack(side="right")
 
 		body = ttk.Panedwindow(self, orient="horizontal")
 		body.pack(fill="both", expand=True, padx=28, pady=(0, 20))
@@ -462,7 +518,7 @@ class App(tk.Tk):
 		right_shell.grid_rowconfigure(0, weight=1)
 		right_shell.grid_columnconfigure(0, weight=1)
 		right_canvas = tk.Canvas(right_shell, bg="#17212b", highlightthickness=0)
-		right_scroll = ttk.Scrollbar(right_shell, orient="vertical", command=right_canvas.yview)
+		right_scroll = IOSScrollbar(right_shell, orient="vertical", command=right_canvas.yview)
 		right_canvas.configure(yscrollcommand=right_scroll.set)
 		right_canvas.grid(row=0, column=0, sticky="nsew")
 		right_scroll.grid(row=0, column=1, sticky="ns")
@@ -476,7 +532,7 @@ class App(tk.Tk):
 		cards_shell = ttk.Frame(left, style="Panel.TFrame")
 		cards_shell.pack(fill="both", expand=True)
 		cards_canvas = tk.Canvas(cards_shell, bg="#17212b", highlightthickness=0)
-		cards_scroll = ttk.Scrollbar(cards_shell, orient="vertical", command=cards_canvas.yview)
+		cards_scroll = IOSScrollbar(cards_shell, orient="vertical", command=cards_canvas.yview)
 		cards_canvas.configure(yscrollcommand=cards_scroll.set)
 		cards_canvas.pack(side="left", fill="both", expand=True)
 		cards_scroll.pack(side="right", fill="y")
@@ -488,9 +544,9 @@ class App(tk.Tk):
 		self.bind_all("<MouseWheel>", self.scroll_active_panel)
 		actions = ttk.Frame(left)
 		actions.pack(fill="x", pady=(12, 0))
-		ttk.Button(actions, text="新增規則", command=self.new_rule).pack(side="left")
-		ttk.Button(actions, text="套用編輯", command=self.update_rule).pack(side="left", padx=8)
-		ttk.Button(actions, text="刪除規則", command=self.delete_rule).pack(side="left")
+		IOSButton(actions, text="新增規則", command=self.new_rule).pack(side="left")
+		IOSButton(actions, text="套用編輯", command=self.update_rule).pack(side="left", padx=8)
+		IOSButton(actions, text="刪除規則", command=self.delete_rule).pack(side="left")
 
 		ttk.Label(right, text="規則編輯器", font=("Segoe UI", 13, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
 		self.fields = {}
@@ -503,18 +559,18 @@ class App(tk.Tk):
 			if key == "name":
 				name_field = ttk.Frame(right)
 				name_field.grid(row=row, column=1, sticky="ew", padx=(14, 0), pady=6)
-				widget = ttk.Entry(name_field, textvariable=variable, width=15)
+				widget = IOSEntry(name_field, textvariable=variable, width=15)
 				widget.pack(side="left")
 				self.enabled_var = tk.BooleanVar(value=True)
 				IOSSwitch(name_field, self.enabled_var).pack(side="left", padx=(12, 0), pady=1)
 			elif key == "condition":
-				widget = ttk.Combobox(right, textvariable=variable, state="readonly", values=list(CONDITIONS.values()), width=22)
+				widget = IOSCombo(right, textvariable=variable, state="readonly", values=list(CONDITIONS.values()), width=22)
 			elif key == "region":
-				widget = ttk.Combobox(right, textvariable=variable, state="readonly", values=RULE_REGIONS, width=22)
+				widget = IOSCombo(right, textvariable=variable, state="readonly", values=RULE_REGIONS, width=22)
 			elif key == "icon":
-				widget = ttk.Combobox(right, textvariable=variable, state="readonly", values=(), width=22)
+				widget = IOSCombo(right, textvariable=variable, state="readonly", values=(), width=22)
 			else:
-				widget = ttk.Entry(right, textvariable=variable, width=25)
+				widget = IOSEntry(right, textvariable=variable, width=25)
 			if key != "name":
 				widget.grid(row=row, column=1, sticky="ew", padx=(14, 0), pady=6)
 			self.field_widgets[key] = widget
@@ -527,8 +583,8 @@ class App(tk.Tk):
 			self.region_vars[region] = variable
 			field = ttk.Frame(right)
 			field.grid(row=row, column=1, sticky="ew", padx=(14, 0), pady=5)
-			ttk.Entry(field, textvariable=variable, width=17).pack(side="left")
-			ttk.Button(field, text="框選", command=lambda name=region: self.select_region(name)).pack(side="left", padx=(5, 0))
+			IOSEntry(field, textvariable=variable, width=17).pack(side="left")
+			IOSButton(field, text="框選", command=lambda name=region: self.select_region(name)).pack(side="left", padx=(5, 0))
 		ttk.Label(right, text="格式：相對 x,y,width,height", foreground="#8fa4b2").grid(row=15, column=1, sticky="w", pady=(2, 14))
 		ttk.Label(right, text="色框2 狀態圖示（每行一個）", font=("Segoe UI", 11, "bold")).grid(row=16, column=0, columnspan=2, sticky="w", pady=(4, 6))
 		tk.Label(right, text="色框3 獨立移動控制", font=("Segoe UI", 11, "bold")).grid(row=20, column=0, columnspan=2, sticky="w", pady=(4, 8))
@@ -537,11 +593,11 @@ class App(tk.Tk):
 		ttk.Label(navigation_toggle, text="啟用色框3隨機移動 / 紅點導航").pack(side="left")
 		IOSSwitch(navigation_toggle, self.navigation_enabled).pack(side="left", padx=(14, 0), pady=1)
 		tk.Label(right, text="移動按鍵（左,右,上,下）").grid(row=22, column=0, sticky="w", pady=4)
-		tk.Entry(right, textvariable=self.navigation_key_var, width=25).grid(row=22, column=1, sticky="ew", padx=(14, 0), pady=4)
+		IOSEntry(right, textvariable=self.navigation_key_var, width=25).grid(row=22, column=1, sticky="ew", padx=(14, 0), pady=4)
 		tk.Label(right, text="藍點避讓距離").grid(row=23, column=0, sticky="w", pady=4)
-		tk.Entry(right, textvariable=self.navigation_avoid_radius_var, width=25).grid(row=23, column=1, sticky="ew", padx=(14, 0), pady=4)
+		IOSEntry(right, textvariable=self.navigation_avoid_radius_var, width=25).grid(row=23, column=1, sticky="ew", padx=(14, 0), pady=4)
 		tk.Label(right, text="移動按住秒數").grid(row=24, column=0, sticky="w", pady=4)
-		ttk.Entry(right, textvariable=self.navigation_hold_var, width=25).grid(row=24, column=1, sticky="ew", padx=(14, 0), pady=4)
+		IOSEntry(right, textvariable=self.navigation_hold_var, width=25).grid(row=24, column=1, sticky="ew", padx=(14, 0), pady=4)
 		roll_toggle = ttk.Frame(right)
 		roll_toggle.grid(row=25, column=0, columnspan=2, sticky="w", pady=4)
 		ttk.Label(roll_toggle, text="移動後使用空白鍵翻滾").pack(side="left")
@@ -551,14 +607,14 @@ class App(tk.Tk):
 		ttk.Label(teleport_toggle, text="啟用瞬移技能").pack(side="left")
 		IOSSwitch(teleport_toggle, self.teleport_enabled).pack(side="left", padx=(14, 0), pady=1)
 		tk.Label(right, text="瞬移按鍵").grid(row=27, column=0, sticky="w", pady=4)
-		tk.Entry(right, textvariable=self.teleport_key_var, width=25).grid(row=27, column=1, sticky="ew", padx=(14, 0), pady=4)
+		IOSEntry(right, textvariable=self.teleport_key_var, width=25).grid(row=27, column=1, sticky="ew", padx=(14, 0), pady=4)
 		tk.Label(right, text="瞬移最小間隔（秒）").grid(row=28, column=0, sticky="w", pady=4)
-		tk.Entry(right, textvariable=self.teleport_cooldown_var, width=25).grid(row=28, column=1, sticky="ew", padx=(14, 0), pady=4)
+		IOSEntry(right, textvariable=self.teleport_cooldown_var, width=25).grid(row=28, column=1, sticky="ew", padx=(14, 0), pady=4)
 		status_toolbar = ttk.Frame(right)
 		status_toolbar.grid(row=17, column=0, columnspan=2, sticky="ew", pady=(0, 5))
 		self.status_name_var = tk.StringVar()
-		ttk.Entry(status_toolbar, textvariable=self.status_name_var, width=19).pack(side="left")
-		ttk.Button(status_toolbar, text="框選並加入", command=self.select_status_icon).pack(side="left", padx=(5, 0))
+		IOSEntry(status_toolbar, textvariable=self.status_name_var, width=19).pack(side="left")
+		IOSButton(status_toolbar, text="框選並加入", command=self.select_status_icon).pack(side="left", padx=(5, 0))
 		self.status_text = tk.Text(right, height=4, width=35, bg="#111a22", fg="#d7e2ea", insertbackground="white", relief="flat")
 		self.status_text.grid(row=18, column=0, columnspan=2, sticky="ew")
 		ttk.Label(right, text="輸入狀態名稱後按框選；規則的狀態圖示名稱需相同", foreground="#8fa4b2", wraplength=270).grid(row=19, column=0, columnspan=2, sticky="w", pady=(4, 12))
@@ -569,8 +625,8 @@ class App(tk.Tk):
 		self.status_label.pack(side="left")
 		self.log_text = tk.Text(footer, height=4, bg="#111a22", fg="#9fb6c2", insertbackground="white", relief="flat", state="disabled")
 		self.log_text.pack(side="left", fill="x", expand=True, padx=22)
-		ttk.Button(footer, text="開始執行", style="Accent.TButton", command=self.start).pack(side="right")
-		ttk.Button(footer, text="停止", command=self.stop).pack(side="right", padx=8)
+		IOSPrimaryButton(footer, text="開始執行", command=self.start).pack(side="right")
+		IOSButton(footer, text="停止", command=self.stop).pack(side="right", padx=8)
 		self.sample_rules()
 
 	def set_scroll_canvas(self, canvas):
@@ -600,8 +656,8 @@ class App(tk.Tk):
 			tk.Label(card, text=f"按鍵 {rule.key}  冷卻 {rule.cooldown}s", background="#111a22", foreground="#9fb6c2").pack(side="left")
 			enabled_var = tk.BooleanVar(value=rule.enabled)
 			IOSSwitch(card, enabled_var, command=lambda value=index, variable=enabled_var: self.toggle_rule(value, variable.get())).pack(side="right", padx=(0, 8), pady=1)
-			ttk.Button(card, text="上移", command=lambda value=index: self.move_rule(value, -1)).pack(side="right")
-			ttk.Button(card, text="下移", command=lambda value=index: self.move_rule(value, 1)).pack(side="right", padx=(0, 5))
+			IOSButton(card, text="上移", command=lambda value=index: self.move_rule(value, -1)).pack(side="right")
+			IOSButton(card, text="下移", command=lambda value=index: self.move_rule(value, 1)).pack(side="right", padx=(0, 5))
 			for child in card.winfo_children():
 				if isinstance(child, tk.Label):
 					child.bind("<Button-1>", lambda _event, value=index: self.select_rule(value))
