@@ -6,7 +6,7 @@ import time
 import tkinter as tk
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import colorchooser, filedialog, messagebox, ttk
 
 try:
 	import pyautogui
@@ -40,6 +40,28 @@ except ImportError:
 
 APP_VERSION = "v1.0.0"
 
+IOS_THEME = {
+	"background": "#F2F2F7",
+	"panel": "#FFFFFF",
+	"card": "#FFFFFF",
+	"primary": "#007AFF",
+	"primary_active": "#5AC8FA",
+	"button": "#E5E5EA",
+	"button_active": "#D1D1D6",
+	"text": "#1C1C1E",
+	"secondary": "#636366",
+	"muted": "#8E8E93",
+	"field": "#FFFFFF",
+	"border": "#D1D1D6",
+	"success": "#34C759",
+	"warning": "#FF9500",
+}
+
+THEME_PRESETS = {
+	"iOS 淺色": dict(IOS_THEME),
+	"iOS 藍灰": {**IOS_THEME, "background": "#EAF2F8", "panel": "#F8FBFF", "card": "#FFFFFF", "primary": "#145DA0", "primary_active": "#3D8AC7"},
+}
+
 
 class IOSSwitch(tk.Frame):
 	WIDTH = 48
@@ -50,7 +72,7 @@ class IOSSwitch(tk.Frame):
 		try:
 			background = parent.cget("background")
 		except tk.TclError:
-			background = "#F2F2F7"
+			background = IOS_THEME["background"]
 		super().__init__(parent, width=self.WIDTH, height=self.HEIGHT, bg=background, highlightthickness=0, padx=0, pady=0)
 		self.pack_propagate(False)
 		self.variable = variable
@@ -75,7 +97,7 @@ class IOSSwitch(tk.Frame):
 	def refresh(self, *_args):
 		self.canvas.delete("all")
 		on = bool(self.variable.get())
-		track = "#34C759" if on else "#AEAEB2"
+		track = IOS_THEME["success"] if on else "#AEAEB2"
 		self.canvas.create_oval(1, 1, self.HEIGHT - 1, self.HEIGHT - 1, fill=track, outline=track)
 		self.canvas.create_rectangle(self.HEIGHT / 2, 1, self.WIDTH - self.HEIGHT / 2, self.HEIGHT - 1, fill=track, outline=track)
 		self.canvas.create_oval(self.WIDTH - self.HEIGHT - 1, 1, self.WIDTH - 1, self.HEIGHT - 1, fill=track, outline=track)
@@ -87,9 +109,9 @@ class IOSButton(tk.Button):
 	def __init__(self, parent, **kwargs):
 		kwargs.setdefault("relief", "flat")
 		kwargs.setdefault("bd", 0)
-		kwargs.setdefault("bg", "#E5E5EA")
-		kwargs.setdefault("fg", "#1C1C1E")
-		kwargs.setdefault("activebackground", "#D1D1D6")
+		kwargs.setdefault("bg", IOS_THEME["button"])
+		kwargs.setdefault("fg", IOS_THEME["text"])
+		kwargs.setdefault("activebackground", IOS_THEME["button_active"])
 		kwargs.setdefault("activeforeground", "#FFFFFF")
 		kwargs.setdefault("font", ("Segoe UI", 10))
 		kwargs.setdefault("padx", 12)
@@ -100,8 +122,8 @@ class IOSButton(tk.Button):
 
 class IOSPrimaryButton(IOSButton):
 	def __init__(self, parent, **kwargs):
-		kwargs.setdefault("bg", "#007AFF")
-		kwargs.setdefault("activebackground", "#5AC8FA")
+		kwargs.setdefault("bg", IOS_THEME["primary"])
+		kwargs.setdefault("activebackground", IOS_THEME["primary_active"])
 		kwargs.setdefault("font", ("Segoe UI", 10, "bold"))
 		super().__init__(parent, **kwargs)
 
@@ -110,12 +132,12 @@ class IOSEntry(tk.Entry):
 	def __init__(self, parent, **kwargs):
 		kwargs.setdefault("relief", "flat")
 		kwargs.setdefault("bd", 0)
-		kwargs.setdefault("bg", "#FFFFFF")
-		kwargs.setdefault("fg", "#1C1C1E")
+		kwargs.setdefault("bg", IOS_THEME["field"])
+		kwargs.setdefault("fg", IOS_THEME["text"])
 		kwargs.setdefault("insertbackground", "#FFFFFF")
 		kwargs.setdefault("highlightthickness", 1)
-		kwargs.setdefault("highlightbackground", "#D1D1D6")
-		kwargs.setdefault("highlightcolor", "#007AFF")
+		kwargs.setdefault("highlightbackground", IOS_THEME["border"])
+		kwargs.setdefault("highlightcolor", IOS_THEME["primary"])
 		kwargs.setdefault("font", ("Segoe UI", 10))
 		super().__init__(parent, **kwargs)
 
@@ -128,9 +150,9 @@ class IOSCombo(ttk.Combobox):
 
 class IOSScrollbar(tk.Scrollbar):
 	def __init__(self, parent, **kwargs):
-		kwargs.setdefault("bg", "#E5E5EA")
+		kwargs.setdefault("bg", IOS_THEME["button"])
 		kwargs.setdefault("activebackground", "#5B7182")
-		kwargs.setdefault("troughcolor", "#F2F2F7")
+		kwargs.setdefault("troughcolor", IOS_THEME["background"])
 		kwargs.setdefault("bd", 0)
 		kwargs.setdefault("width", 12)
 		kwargs.setdefault("highlightthickness", 0)
@@ -465,6 +487,7 @@ class App(tk.Tk):
 		self.navigation_avoid_radius_var = tk.StringVar(value="80")
 		self.navigation_config = {}
 		self.active_scroll_canvas = None
+		self.theme_var = tk.StringVar(value="iOS 淺色")
 		for variable in (self.navigation_enabled, self.roll_enabled, self.teleport_enabled, self.teleport_key_var, self.teleport_cooldown_var, self.navigation_key_var, self.navigation_hold_var, self.navigation_avoid_radius_var):
 			variable.trace_add("write", lambda *_args: self.sync_navigation_config())
 		self.sync_navigation_config()
@@ -490,6 +513,55 @@ class App(tk.Tk):
 		style.configure("Treeview", background="#FFFFFF", fieldbackground="#FFFFFF", foreground="#1C1C1E", rowheight=32, borderwidth=0)
 		style.configure("Treeview.Heading", background="#E5E5EA", foreground="#636366", relief="flat")
 
+	def apply_theme(self, theme):
+		IOS_THEME.update(theme)
+		self.configure(bg=IOS_THEME["background"])
+		style = ttk.Style(self)
+		style.configure("TFrame", background=IOS_THEME["background"])
+		style.configure("Panel.TFrame", background=IOS_THEME["panel"])
+		style.configure("TLabel", background=IOS_THEME["panel"], foreground=IOS_THEME["text"])
+		style.configure("Title.TLabel", background=IOS_THEME["background"], foreground=IOS_THEME["text"])
+		style.configure("Sub.TLabel", background=IOS_THEME["background"], foreground=IOS_THEME["muted"])
+		style.configure("IOS.TCombobox", fieldbackground=IOS_THEME["field"], background=IOS_THEME["button"], foreground=IOS_THEME["text"], arrowcolor=IOS_THEME["primary"])
+		style.configure("TButton", background=IOS_THEME["button"], foreground=IOS_THEME["text"])
+		style.configure("Accent.TButton", background=IOS_THEME["primary"], foreground="white")
+		self.refresh_theme_widgets(self)
+
+	def refresh_theme_widgets(self, parent):
+		for widget in parent.winfo_children():
+			if isinstance(widget, IOSSwitch):
+				widget.configure(bg=IOS_THEME["panel"])
+				widget.canvas.configure(bg=IOS_THEME["panel"])
+				widget.refresh()
+			elif isinstance(widget, IOSPrimaryButton):
+				widget.configure(bg=IOS_THEME["primary"], activebackground=IOS_THEME["primary_active"])
+			elif isinstance(widget, IOSButton):
+				widget.configure(bg=IOS_THEME["button"], fg=IOS_THEME["text"], activebackground=IOS_THEME["button_active"])
+			elif isinstance(widget, IOSEntry):
+				widget.configure(bg=IOS_THEME["field"], fg=IOS_THEME["text"], highlightbackground=IOS_THEME["border"], highlightcolor=IOS_THEME["primary"])
+			elif isinstance(widget, tk.Canvas):
+				widget.configure(bg=IOS_THEME["panel"])
+			elif isinstance(widget, tk.Frame):
+				widget.configure(bg=IOS_THEME["card"])
+			elif isinstance(widget, tk.Label):
+				try:
+					widget.configure(bg=widget.master.cget("background"), fg=IOS_THEME["text"])
+				except tk.TclError:
+					widget.configure(fg=IOS_THEME["text"])
+			self.refresh_theme_widgets(widget)
+
+	def choose_theme(self, _event=None):
+		name = self.theme_var.get()
+		if name in THEME_PRESETS:
+			self.apply_theme(THEME_PRESETS[name])
+
+	def choose_custom_color(self, key):
+		color = colorchooser.askcolor(color=IOS_THEME[key], title="選擇主題色")[1]
+		if color:
+			IOS_THEME[key] = color.upper()
+			self.theme_var.set("自訂")
+			self.apply_theme(IOS_THEME)
+
 	def build_ui(self):
 		header = ttk.Frame(self)
 		header.pack(fill="x", padx=28, pady=(24, 14))
@@ -508,6 +580,11 @@ class App(tk.Tk):
 		self.window_combo.bind("<<ComboboxSelected>>", self.on_window_selected)
 		IOSButton(toolbar, text="儲存設定", command=self.save).pack(side="right", padx=(8, 0))
 		IOSButton(toolbar, text="載入設定", command=self.load).pack(side="right")
+		IOSButton(toolbar, text="自訂背景色", command=lambda: self.choose_custom_color("background")).pack(side="right", padx=(8, 0))
+		IOSButton(toolbar, text="自訂主色", command=lambda: self.choose_custom_color("primary")).pack(side="right", padx=(8, 0))
+		self.theme_combo = IOSCombo(toolbar, textvariable=self.theme_var, state="readonly", values=tuple(THEME_PRESETS) + ("自訂",), width=12)
+		self.theme_combo.pack(side="right", padx=(8, 0))
+		self.theme_combo.bind("<<ComboboxSelected>>", self.choose_theme)
 
 		body = ttk.Panedwindow(self, orient="horizontal")
 		body.pack(fill="both", expand=True, padx=28, pady=(0, 20))
@@ -645,19 +722,19 @@ class App(tk.Tk):
 		for child in self.cards_frame.winfo_children():
 			child.destroy()
 		for index, rule in enumerate(self.rules):
-			card = tk.Frame(self.cards_frame, bg="#FFFFFF", highlightthickness=1, highlightbackground="#D1D1D6", padx=10, pady=8)
+			card = tk.Frame(self.cards_frame, bg=IOS_THEME["card"], highlightthickness=1, highlightbackground=IOS_THEME["border"], padx=10, pady=8)
 			card.pack(fill="x", pady=(0, 8))
 			card.bind("<Button-1>", lambda _event, value=index: self.select_rule(value))
 			card.bind("<ButtonPress-1>", lambda _event, value=index: self.begin_drag(value))
 			card.bind("<ButtonRelease-1>", self.finish_drag)
 			condition = CONDITIONS.get(rule.condition, rule.condition)
-			tk.Label(card, text=f"{index + 1:02d}  {rule.name}", background="#FFFFFF", foreground="#1C1C1E", font=("Segoe UI", 11, "bold")).pack(side="left")
-			tk.Label(card, text=condition, background="#FFFFFF", foreground="#636366").pack(side="left", padx=12)
-			tk.Label(card, text=f"按鍵 {rule.key}  冷卻 {rule.cooldown}s", background="#FFFFFF", foreground="#636366").pack(side="left")
+			tk.Label(card, text=f"{index + 1:02d}  {rule.name}", background=IOS_THEME["card"], foreground=IOS_THEME["text"], font=("Segoe UI", 11, "bold")).pack(side="left")
+			tk.Label(card, text=condition, background=IOS_THEME["card"], foreground=IOS_THEME["secondary"]).pack(side="left", padx=12)
+			tk.Label(card, text=f"按鍵 {rule.key}  冷卻 {rule.cooldown}s", background=IOS_THEME["card"], foreground=IOS_THEME["secondary"]).pack(side="left")
 			enabled_var = tk.BooleanVar(value=rule.enabled)
-			IOSSwitch(card, enabled_var, command=lambda value=index, variable=enabled_var: self.toggle_rule(value, variable.get())).pack(side="right", padx=(0, 8), pady=1)
-			IOSButton(card, text="上移", command=lambda value=index: self.move_rule(value, -1)).pack(side="right")
-			IOSButton(card, text="下移", command=lambda value=index: self.move_rule(value, 1)).pack(side="right", padx=(0, 5))
+			IOSSwitch(card, enabled_var, command=lambda value=index, variable=enabled_var: self.toggle_rule(value, variable.get())).pack(side="right", padx=(0, 18), pady=1)
+			IOSButton(card, text="上移", command=lambda value=index: self.move_rule(value, -1)).pack(side="right", padx=(0, 10))
+			IOSButton(card, text="下移", command=lambda value=index: self.move_rule(value, 1)).pack(side="right", padx=(0, 10))
 			for child in card.winfo_children():
 				if isinstance(child, tk.Label):
 					child.bind("<Button-1>", lambda _event, value=index: self.select_rule(value))
@@ -987,7 +1064,7 @@ class App(tk.Tk):
 			return
 		self.parse_regions()
 		self.parse_status_icons()
-		data = {"target": self.target_var.get(), "window": self.window_var.get(), "regions": self.regions, "status_icons": self.status_icons, "rules": [asdict(rule) for rule in self.rules], "navigation": {"enabled": self.navigation_enabled.get(), "keys": self.navigation_key_var.get(), "hold": self.navigation_hold_var.get(), "avoid_radius": self.navigation_avoid_radius_var.get(), "roll": self.roll_enabled.get(), "teleport": self.teleport_enabled.get(), "teleport_key": self.teleport_key_var.get(), "teleport_cooldown": self.teleport_cooldown_var.get()}}
+		data = {"target": self.target_var.get(), "window": self.window_var.get(), "theme": IOS_THEME, "regions": self.regions, "status_icons": self.status_icons, "rules": [asdict(rule) for rule in self.rules], "navigation": {"enabled": self.navigation_enabled.get(), "keys": self.navigation_key_var.get(), "hold": self.navigation_hold_var.get(), "avoid_radius": self.navigation_avoid_radius_var.get(), "roll": self.roll_enabled.get(), "teleport": self.teleport_enabled.get(), "teleport_key": self.teleport_key_var.get(), "teleport_cooldown": self.teleport_cooldown_var.get()}}
 		Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 		self.log(f"設定已儲存：{Path(path).name}")
 
@@ -999,6 +1076,10 @@ class App(tk.Tk):
 			data = json.loads(Path(path).read_text(encoding="utf-8"))
 			self.target_var.set(data.get("target", ""))
 			self.window_var.set(data.get("window", "尚未選擇"))
+			if isinstance(data.get("theme"), dict):
+				IOS_THEME.update({key: str(value) for key, value in data["theme"].items() if key in IOS_THEME})
+				self.theme_var.set("自訂")
+				self.apply_theme(IOS_THEME)
 			navigation = data.get("navigation", {})
 			self.navigation_enabled.set(bool(navigation.get("enabled", False)))
 			self.navigation_key_var.set(str(navigation.get("keys", "a,d,w,s")))
