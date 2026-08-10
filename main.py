@@ -199,6 +199,7 @@ class AutomationEngine:
 		self.app = app
 		self.reader = VisionReader(app)
 		self.thread = None
+		self.navigation_thread = None
 		self.stop_event = threading.Event()
 		self.last_run = {}
 		self.started_at = 0.0
@@ -210,6 +211,8 @@ class AutomationEngine:
 		self.started_at = time.time()
 		self.thread = threading.Thread(target=self.run, daemon=True)
 		self.thread.start()
+		self.navigation_thread = threading.Thread(target=self.run_navigation, daemon=True)
+		self.navigation_thread.start()
 
 	def stop(self):
 		self.stop_event.set()
@@ -217,7 +220,7 @@ class AutomationEngine:
 	def run(self):
 		self.app.set_status("執行中", "#5ee0a0")
 		while not self.stop_event.is_set():
-			rules = sorted((rule for rule in self.app.rules if rule.enabled), key=lambda item: item.priority)
+			rules = sorted((rule for rule in self.app.rules if rule.enabled and rule.condition != "red_dot_navigation"), key=lambda item: item.priority)
 			fired = False
 			for rule in rules:
 				if self.stop_event.is_set():
@@ -229,6 +232,24 @@ class AutomationEngine:
 			if not fired:
 				self.stop_event.wait(0.1)
 		self.app.set_status("已停止", "#ffb86b")
+
+	def run_navigation(self):
+		while not self.stop_event.is_set():
+			navigation_rules = sorted((rule for rule in self.app.rules if rule.enabled and rule.condition == "red_dot_navigation"), key=lambda item: item.priority)
+			fired = False
+			for rule in navigation_rules:
+				if self.stop_event.is_set():
+					break
+				if self.is_ready(rule) and self.condition_matches(rule):
+					self.trigger_navigation_rule(rule)
+					fired = True
+					break
+			if not fired:
+				self.stop_event.wait(0.08)
+
+	def trigger_navigation_rule(self, rule):
+		self.last_run[rule.name] = time.time()
+		self.trigger_navigation(rule)
 
 	def is_ready(self, rule):
 		return time.time() - self.last_run.get(rule.name, 0) >= max(0.05, rule.cooldown)
