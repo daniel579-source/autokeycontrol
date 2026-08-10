@@ -1,4 +1,5 @@
 import json
+import math
 import threading
 import time
 import tkinter as tk
@@ -59,6 +60,7 @@ CONDITIONS = {
 	"hp_below": "血量低於 (%)",
 	"status_missing": "狀態圖示消失",
 	"nearest_red_dot": "最近紅點距離小於 (px)",
+	"red_dot_navigation": "紅點導航（避開藍點）",
 }
 
 VISION_REGIONS = ("色框1 血量", "色框2 狀態", "色框3 地圖")
@@ -117,21 +119,79 @@ class VisionReader:
 		return score >= threshold
 
 	def nearest_red_dot(self):
-		image = self.screenshot("色框3 地圖")
+		navigation = self.navigation_decision("色框3 地圖", 80)
+		return navigation["red_distance"] if navigation else None
+
+	def navigation_decision(self, region_name, avoid_radius):
+		image = self.screenshot(region_name)
 		if image is None:
 			return None
-		pixels = image.convert("RGB").load()
-		width, height = image.size
-		points = []
-		for y in range(0, height, 3):
-			for x in range(0, width, 3):
-				red, green, blue = pixels[x, y]
-				if red > 180 and red > green * 1.5 and red > blue * 1.5:
-					points.append((x, y))
-		if not points:
+		red_points, blue_points = self.detect_map_points(image)
+		if not red_points:
 			return None
+		width, height = image.size
 		center = (width / 2, height / 2)
-		return min(((x - center[0]) ** 2 + (y - center[1]) ** 2) ** 0.5 for x, y in points)
+		red_target = min(red_points, key=lambda point: self.distance(center, point))
+		red_distance = self.distance(center, red_target)
+		red_vector = (red_target[0] - center[0], red_target[1] - center[1])
+		blue_blocking = self.find_blocking_blue(center, red_vector, blue_points, avoid_radius)
+		if blue_blocking:
+			move_vector = (-blue_blocking[0] + center[0], -blue_blocking[1] + center[1])
+			reason = "避開藍點"
+		else:
+			move_vector = red_vector
+			reason = "前往最近紅點"
+		return {"direction": self.vector_direction(move_vector), "red_distance": red_distance, "reason": reason}
+
+	def detect_map_points(self, image):
+		width, height = image.size
+		pixels = image.convert("RGB").load()
+		red_points = []
+		blue_points = []
+		for y in range(0, height, 2):
+			for x in range(0, width, 2):
+				red, green, blue = pixels[x, y]
+				if red > 170 and red > green * 1.45 and red > blue * 1.45:
+					red_points.append((x, y))
+				elif blue > 130 and blue > red * 1.25 and blue > green * 1.10:
+					blue_points.append((x, y))
+		return self.cluster_points(red_points), self.cluster_points(blue_points)
+
+	def cluster_points(self, points):
+		if not points:
+			return []
+		clusters = []
+		for point in points:
+			for cluster in clusters:
+				if self.distance(point, cluster[0]) <= 12:
+					cluster.append(point)
+					break
+			else:
+				clusters.append([point])
+		return [(round(sum(point[0] for point in cluster) / len(cluster)), round(sum(point[1] for point in cluster) / len(cluster))) for cluster in clusters]
+
+	@staticmethod
+	def distance(first, second):
+		return math.hypot(second[0] - first[0], second[1] - first[1])
+
+	def find_blocking_blue(self, center, red_vector, blue_points, avoid_radius):
+		red_length = math.hypot(*red_vector)
+		if red_length == 0:
+			return None
+		red_unit = (red_vector[0] / red_length, red_vector[1] / red_length)
+		for blue_point in sorted(blue_points, key=lambda point: self.distance(center, point)):
+			blue_vector = (blue_point[0] - center[0], blue_point[1] - center[1])
+			forward_distance = blue_vector[0] * red_unit[0] + blue_vector[1] * red_unit[1]
+			lateral_distance = abs(blue_vector[0] * red_unit[1] - blue_vector[1] * red_unit[0])
+			if 0 < forward_distance <= avoid_radius and lateral_distance <= avoid_radius * 0.65:
+				return blue_point
+		return None
+
+	@staticmethod
+	def vector_direction(vector):
+		if abs(vector[0]) >= abs(vector[1]):
+			return "right" if vector[0] > 0 else "left"
+		return "down" if vector[1] > 0 else "up"
 
 
 class AutomationEngine:
@@ -186,18 +246,36 @@ class AutomationEngine:
 		if rule.condition == "nearest_red_dot":
 			distance = self.reader.nearest_red_dot()
 			return distance is not None and distance <= float(rule.value)
+		if rule.condition == "red_dot_navigation":
+			decision = self.reader.navigation_decision(rule.region, float(rule.value or 80))
+			return decision is not None
 		return False
 
 	def trigger(self, rule):
 		self.last_run[rule.name] = time.time()
-		self.app.log(f"觸發：{rule.name} → {rule.key}")
+		key = rule.key
+		if rule.condition == "red_dot_navigation":
+			decision = self.reader.navigation_decision(rule.region, float(rule.value or 80))
+			if not decision:
+				return
+			key = self.navigation_key(rule.key, decision["direction"])
+			self.app.log(f"導航：{decision['reason']} → {key}")
+		else:
+			self.app.log(f"觸發：{rule.name} → {key}")
 		if pyautogui is None:
 			self.app.log("預覽模式：尚未安裝 pyautogui，未送出按鍵")
 			return
 		self.app.focus_target()
-		pyautogui.keyDown(rule.key)
+		pyautogui.keyDown(key)
 		time.sleep(max(0, rule.hold))
-		pyautogui.keyUp(rule.key)
+		pyautogui.keyUp(key)
+
+	@staticmethod
+	def navigation_key(mapping, direction):
+		keys = [item.strip() for item in mapping.split(",") if item.strip()]
+		if len(keys) != 4:
+			return direction
+		return dict(zip(("left", "right", "up", "down"), keys))[direction]
 
 
 class App(tk.Tk):
@@ -272,7 +350,7 @@ class App(tk.Tk):
 		ttk.Label(right, text="規則編輯器", font=("Segoe UI", 13, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
 		self.fields = {}
 		self.field_widgets = {}
-		field_defs = [("name", "名稱"), ("priority", "優先度"), ("condition", "條件"), ("value", "數值 / 門檻"), ("key", "按鍵"), ("hold", "按住秒數"), ("cooldown", "冷卻秒數"), ("region", "判斷色框"), ("icon", "圖示資源")]
+		field_defs = [("name", "名稱"), ("priority", "優先度"), ("condition", "條件"), ("value", "數值 / 門檻"), ("key", "按鍵 / 導航按鍵"), ("hold", "按住秒數"), ("cooldown", "冷卻秒數"), ("region", "判斷色框"), ("icon", "圖示資源")]
 		for row, (key, label) in enumerate(field_defs, 1):
 			ttk.Label(right, text=label).grid(row=row, column=0, sticky="w", pady=6)
 			variable = tk.StringVar()
@@ -296,6 +374,7 @@ class App(tk.Tk):
 				widget.grid(row=row, column=1, sticky="ew", padx=(14, 0), pady=6)
 			self.field_widgets[key] = widget
 		ttk.Separator(right).grid(row=10, column=0, columnspan=2, sticky="ew", pady=5)
+		tk.Label(right, text="導航按鍵格式：左,右,上,下，例如 a,d,w,s", foreground="#8fa4b2").grid(row=10, column=1, sticky="w", pady=(0, 5))
 		ttk.Label(right, text="視覺區域（相對目標視窗）", font=("Segoe UI", 11, "bold")).grid(row=11, column=0, columnspan=2, sticky="w", pady=(14, 8))
 		for row, region in enumerate(("色框1 血量", "色框2 狀態", "色框3 地圖"), 12):
 			ttk.Label(right, text=region).grid(row=row, column=0, sticky="w", pady=5)
@@ -327,7 +406,7 @@ class App(tk.Tk):
 		self.sample_rules()
 
 	def sample_rules(self):
-		self.rules = [Rule("低血量保命", True, 1, "hp_below", "35", "F1", 0.12, 3.0, "色框1 血量"), Rule("補上狀態", True, 2, "status_missing", "0.8", "2", 0.15, 8.0, "色框2 狀態", "護盾"), Rule("週期技能", True, 3, "interval", "5", "3", 0.1, 5.0, "色框3 地圖")]
+		self.rules = [Rule("低血量保命", True, 1, "hp_below", "35", "F1", 0.12, 3.0, "色框1 血量"), Rule("補上狀態", True, 2, "status_missing", "0.8", "2", 0.15, 8.0, "色框2 狀態", "護盾"), Rule("紅點導航", True, 3, "red_dot_navigation", "80", "a,d,w,s", 0.12, 0.3, "色框3 地圖"), Rule("週期技能", True, 4, "interval", "5", "3", 0.1, 5.0, "色框3 地圖")]
 		self.refresh_tree()
 		self.log("已載入範例規則；視覺區域需依遊戲畫面填入座標。")
 
